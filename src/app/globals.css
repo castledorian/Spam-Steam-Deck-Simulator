@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root { color-scheme: dark; }
+html { background: #09070f; }
+body {
+  background:
+    radial-gradient(1200px 500px at 15% -10%, rgba(255,138,76,.12), transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, rgba(185,140,255,.12), transparent 60%),
+    #09070f;
+  color: #e7e4ef;
+  min-height: 100vh;
+}
+.card-panel {
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  border-radius: 10px; padding: .55rem 1rem; font-weight: 600; font-size: .9rem;
+  transition: transform .15s, background-color .15s, opacity .15s;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: linear-gradient(135deg,#ffb547,#ff7a45); color: #1a1008; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost { background: rgba(255,255,255,.07); color: #e7e4ef; }
+.btn-ghost:hover { background: rgba(255,255,255,.13); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.input {
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px; padding: .5rem .75rem; color: #fff; outline: none;
+}
+.input:focus { border-color: #ffb547; }
+select.input option { background: #14111c; }
+.tbl th { text-align: left; font-weight: 600; color: #a39fb3; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+.tbl td, .tbl th { padding: .45rem .6rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
