@@ -16,25 +16,24 @@ function CardViewInner({ card, big = false, eager = false }: { card: RawCard; bi
     ...card.skills.map((s) => ({ kind: "s" as const, name: s.name })),
   ].slice(0, L.rows.max);
   const R = L.rows;
-  // Disposition façon Dojo SPAM : icône d'élément en haut à droite (bien visible), coût en Spamtons en haut à gauche.
-  const ORB = 260;
-  const orbX = L.width - ORB + 45, orbY = -35;
-  const spX = L.width - (L.spamton.x + L.spamton.width);
+  // Disposition façon Dojo SPAM : grosse icône d'élément en haut à gauche, qui déborde du coin ; coût en Spamtons en haut à droite.
+  const ORB = 250;
+  const orbX = -85, orbY = -65;
+  const spX = L.spamton.x;
   const abs = { position: "absolute" as const };
   return (
     <div
-      className="spam-card relative select-none overflow-hidden bg-[#0b0618]"
-      style={{ aspectRatio: `${L.width}/${L.height}`, containerType: "inline-size", borderRadius: `${(L.cornerRadius / L.width) * 100}% / ${(L.cornerRadius / L.height) * 100}%`, fontFamily: "'Lilita One', system-ui, sans-serif" }}
+      className="spam-card relative select-none"
+      style={{ aspectRatio: `${L.width}/${L.height}`, containerType: "inline-size", fontFamily: "'Lilita One', system-ui, sans-serif" }}
       role="img"
       aria-label={`Carte ${card.name}`}
     >
+      <div className="absolute inset-0 overflow-hidden bg-[#0b0618]" style={{ borderRadius: `${(L.cornerRadius / L.width) * 100}% / ${(L.cornerRadius / L.height) * 100}%` }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={img(art)} alt="" loading={eager ? "eager" : "lazy"} decoding="async" draggable={false} style={{ ...abs, inset: 0, width: "100%", height: "100%", objectFit: "contain", objectPosition: "center" }} />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={img(L.body.image.replace("{element}", card.element))} alt="" loading={eager ? "eager" : "lazy"} decoding="async" draggable={false} style={{ ...abs, inset: 0, width: "100%", height: "100%" }} />
       <div style={{ ...abs, left: 0, top: 0, width: "100%", height: px(L.header.height), background: `linear-gradient(${L.header.gradient[0]}, ${L.header.gradient[1]})` }} />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={img(L.elementOrb.image.replace("{element}", card.element))} alt={card.element} loading="lazy" decoding="async" style={{ ...abs, left: px(orbX), top: px(orbY), width: px(ORB), height: px(ORB), filter: "drop-shadow(0 4px 6px rgba(0,0,0,.7))" }} />
       <div style={{ ...abs, left: px(spX), top: px(L.spamton.y), width: px(L.spamton.width), height: px(L.spamton.height) }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={img(L.spamton.image)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%" }} />
@@ -42,7 +41,7 @@ function CardViewInner({ card, big = false, eager = false }: { card: RawCard; bi
           {card.spamton}
         </span>
       </div>
-      <div style={{ ...abs, left: px(L.name.x), top: px(L.name.y), width: px(L.name.width - 90), fontSize: px(L.name.fontSize), lineHeight: L.name.lineHeight, color: "#fff", textTransform: "uppercase", textShadow: L.name.shadow.replace(/(\d+)px/g, (_, n) => `${(+n * 100) / 961}cqw`), display: "-webkit-box", WebkitLineClamp: L.name.maxLines, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+      <div style={{ ...abs, left: px(L.name.x), top: px(L.name.y), width: px(L.name.width), fontSize: px(L.name.fontSize), lineHeight: L.name.lineHeight, color: "#fff", textTransform: "uppercase", textShadow: L.name.shadow.replace(/(\d+)px/g, (_, n) => `${(+n * 100) / 961}cqw`), display: "-webkit-box", WebkitLineClamp: L.name.maxLines, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
         {card.name}
       </div>
       {rows.map((r, i) => {
@@ -78,6 +77,9 @@ function CardViewInner({ card, big = false, eager = false }: { card: RawCard; bi
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={img(L.rarityGem.image.replace("{rarity}", card.rarity))} alt="" loading="lazy" decoding="async" style={{ ...abs, left: px(L.rarityGem.x), top: px(L.rarityGem.y), width: px(L.rarityGem.width), height: px(L.rarityGem.height) }} />
       <div style={{ ...abs, inset: 0, borderRadius: px(L.cornerRadius), boxShadow: `inset 0 0 0 ${px(L.border.width)} #000`, pointerEvents: "none" }} />
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={img(L.elementOrb.image.replace("{element}", card.element))} alt={card.element} loading="lazy" decoding="async" style={{ ...abs, left: px(orbX), top: px(orbY), width: px(ORB), height: px(ORB), filter: "drop-shadow(0 4px 6px rgba(0,0,0,.7))" }} />
     </div>
   );
 }
@@ -93,7 +95,7 @@ export function CardChip({ card, size = 56, onClick, title }: { card: RawCard; s
       <img src={img(card.artwork.tiny)} alt={card.name} loading="lazy" decoding="async" className="h-full w-full object-contain" />
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1 pb-0.5 pt-3 text-[9px] leading-tight text-white">{card.name}</span>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {orb && <img src={orb} alt={card.element} className="absolute -right-1 -top-1 drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]" style={{ width: Math.max(18, size * 0.46), height: Math.max(18, size * 0.46) }} />}
+      {orb && <img src={orb} alt={card.element} className="absolute left-0 top-0 drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]" style={{ width: Math.max(18, size * 0.46), height: Math.max(18, size * 0.46) }} />}
     </button>
   );
 }
