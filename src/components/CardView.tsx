@@ -20,7 +20,7 @@ function CardViewInner({ card, big = false, eager = false }: { card: RawCard; bi
   return (
     <div
       className="spam-card relative select-none overflow-hidden bg-[#0b0618]"
-      style={{ aspectRatio: `${L.width}/${L.height}`, containerType: "inline-size", borderRadius: px(L.cornerRadius), fontFamily: "'Lilita One', system-ui, sans-serif" }}
+      style={{ aspectRatio: `${L.width}/${L.height}`, containerType: "inline-size", borderRadius: `${(L.cornerRadius / L.width) * 100}% / ${(L.cornerRadius / L.height) * 100}%`, fontFamily: "'Lilita One', system-ui, sans-serif" }}
       role="img"
       aria-label={`Carte ${card.name}`}
     >

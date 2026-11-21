@@ -30,7 +30,7 @@ export function PatchesView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-4xl text-white">Patchs & évolutions des cartes</h1>
+        <h1 className="font-display text-3xl text-white sm:text-4xl">Patchs & évolutions des cartes</h1>
         <p className="mt-1 max-w-3xl text-sm text-white/65">
           Le site vérifie le SpamDex officiel toutes les heures : dès qu&apos;une nouvelle version est publiée, les cartes, statistiques, passifs et talents sont mis à jour et le site est republié. Les différences entre versions sont calculées automatiquement.
         </p>

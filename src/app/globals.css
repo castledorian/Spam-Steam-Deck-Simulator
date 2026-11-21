@@ -27,6 +27,7 @@ body {
   letter-spacing: 0.02em;
 }
 
+@layer components {
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -93,6 +94,7 @@ body {
   background: rgba(255, 199, 86, 0.18);
   border-color: var(--accent);
 }
+}
 
 /* grille de cartes performante : rendu différé hors écran */
 .card-cell {
@@ -128,6 +130,21 @@ body {
   background: rgba(255, 255, 255, 0.18);
   border-radius: 10px;
 }
+
+/* barre de navigation défilante sans ascenseur visible */
+.no-scrollbar { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* téléphone : pas de zoom automatique sur les champs (iOS zoome sous 16 px), cibles tactiles plus grandes,
+   fond fixe désactivé (saccadé sur iOS) */
+@media (max-width: 640px) {
+  body { background-attachment: scroll; }
+  .input, select, textarea { font-size: 16px; }
+  .chip { padding: 0.35rem 0.75rem; font-size: 0.8125rem; }
+  .btn { padding: 0.65rem 1rem; }
+}
+html { -webkit-text-size-adjust: 100%; }
+button, a, label, select { -webkit-tap-highlight-color: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   * {

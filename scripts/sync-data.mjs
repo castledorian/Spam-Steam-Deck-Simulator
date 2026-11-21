@@ -8,13 +8,13 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { diffDatasets, checkDataset } from "./diff.mjs";
+import { diffDatasets, checkDataset, DIFF_VERSION } from "./diff.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "public/data");
 const BASE = "https://spamgame.com/data/";
 const LANG = "fr";
-const force = process.argv.includes("--force");
+let force = process.argv.includes("--force");
 
 async function getJson(url, ms = 30000) {
   let last;
@@ -49,6 +49,9 @@ if (!index.languages?.includes(LANG)) throw new Error(`Langue « ${LANG} » abse
 const path = (v) => index.cards.replace("{version}", v).replace("{language}", LANG);
 
 const local = readLocal("dataset.json", null);
+// historique calculé avec une ancienne version du calcul des différences : tout est recalculé
+const diffInfo = readLocal("patches-version.json", { diff: 1 });
+if (diffInfo.diff !== DIFF_VERSION) { force = true; console.log(`Calcul des patchs v${diffInfo.diff} → v${DIFF_VERSION} : historique recalculé.`); }
 const localPatches = readLocal("patches.json", []);
 const known = new Set(localPatches.map((p) => p.version));
 const missingPatches = index.versions.filter((v) => !known.has(v.version));
@@ -109,6 +112,7 @@ writeFileSync(join(OUT, "dataset.json"), JSON.stringify(latest) + "\n");
 writeFileSync(join(OUT, "layout.json"), JSON.stringify(layout) + "\n");
 patches.sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
 writeFileSync(join(OUT, "patches.json"), JSON.stringify(patches) + "\n");
+writeFileSync(join(OUT, "patches-version.json"), JSON.stringify({ diff: DIFF_VERSION }) + "\n");
 
 const msg = `Données officielles ${latest.version} (${latest.cards.length} cartes, ${patches.length} versions)`;
 console.log(msg);

@@ -64,6 +64,8 @@ export const useSpam = () => {
 
 const KEY = "spamlab.collection.v1";
 const KEY_MODE = "spamlab.talents.v1";
+/** Préfixe de la méta mémorisée : changé à chaque évolution du moteur pour ne pas réutiliser d'anciens résultats. */
+const META_KEY = "spamlab.meta.v6.";
 
 export function SpamProvider({ children }: { children: ReactNode }) {
   const [ds, setDs] = useState<RawDataset | null>(null);
@@ -203,7 +205,7 @@ export function SpamProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         // Méta calculée dans ce navigateur, mémorisée par version de jeu.
-        const local = localStorage.getItem("spamlab.meta." + ds.version);
+        const local = localStorage.getItem(META_KEY + ds.version);
         if (!cancelled) setMeta(local ? (JSON.parse(local) as MetaPayload) : null);
       } catch { /* ignore */ }
     })();
@@ -219,7 +221,7 @@ export function SpamProvider({ children }: { children: ReactNode }) {
       const pool = await getPool();
       const m = await buildMeta(pool, d.cards.map((c) => c.number), d.version, precision, cb);
       setMeta(m);
-      try { localStorage.setItem("spamlab.meta." + d.version, JSON.stringify(m)); } catch { /* ignore */ }
+      try { localStorage.setItem(META_KEY + d.version, JSON.stringify(m)); } catch { /* ignore */ }
       return m;
     } finally {
       setMetaBusy(false);

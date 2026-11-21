@@ -34,7 +34,7 @@ export type Fam =
   | "berserk" | "bomba" | "brut" | "erosion" | "multiplier" | "optimization" | "poison" | "reflect" | "revenge"
   | "avenger" | "lucky" | "graveyard" | "spamland" | "heart" | "heartres" | "mimicry" | "camo" | "backlash"
   | "vital" | "regen" | "immunity" | "phoenix" | "punching" | "reset" | "shield" | "smoke" | "taunt"
-  | "tenacity" | "vamp" | "eternity" | "freeze" | "temporality" | "vanish" | "aoe" | "mystery";
+  | "tenacity" | "vamp" | "eternity" | "freeze" | "temporality" | "vanish" | "aoe" | "mystery" | "inversion" | "metamorph";
 
 export interface ToxFamily {
   fam: Fam;
@@ -47,7 +47,7 @@ export interface ToxFamily {
   estimated?: boolean; // prix estimés (non publiés par SpamDex)
 }
 const N = null;
-const HEART_PRICES = [15, 30, 60, 100];
+const HEART_PRICES = [15, 30, 60, 120];
 const mk = (fam: Fam, name: string, group: string, vals: (number | null)[], prices: (number | null)[], desc: string, extra: Partial<ToxFamily> = {}): ToxFamily => ({ fam, name, group, vals, prices, desc, ...extra });
 
 export const RAR_NAMES = ["Commun", "Rare", "Épique", "Légendaire"];
@@ -68,9 +68,9 @@ export const TOX_CATALOG: ToxFamily[] = [
   mk("graveyard", "Cimetière", "Économie & Chance", [3, 5, 8, 12], [20, 40, 60, 80], "+X à tous vos bonus élémentaires quand une carte meurt"),
   mk("spamland", "Spamland", "Économie & Chance", [4, 8, 24, 48], [5, 10, 16, 24], "Génère +X Spamtons par tour"),
   ...(["fire", "light", "earth", "nature", "shadow", "water"] as const).map((e, i) =>
-    mk("heart", "Cœur de " + ["feu", "lumière", "terre", "nature", "ombre", "eau"][i], "Bonus élémentaires", [1, 2, 4, 8], HEART_PRICES, "+X bonus de " + EL_FR[elIdx(e)] + " par tour", { el: elIdx(e), estimated: true }),
+    mk("heart", ["Cœur de feu", "Cœur de lumière", "Cœur de terre", "Cœur de nature", "Cœur d'ombre", "Cœur d'eau"][i], "Bonus élémentaires", [1, 2, 5, 8], HEART_PRICES, "+X bonus de " + EL_FR[elIdx(e)] + " par tour", { el: elIdx(e) }),
   ),
-  mk("heartres", "Cœur de résistance", "Bonus élémentaires", [3, 6, 10, 15], [10, 20, 40, 70], "+X résistances à toutes les cartes alliées par tour", { estimated: true }),
+  mk("heartres", "Cœur de résistance", "Bonus élémentaires", [3, 6, 10, 15], [10, 30, 70, 120], "+X résistances à toutes les cartes alliées par tour"),
   mk("mimicry", "Mimétisme", "Bonus élémentaires", [N, 1, N, N], [N, 50, N, N], "Quand l'adversaire génère un élément, vous en générez 1 du même type"),
   mk("camo", "Camouflage", "Autre", [N, 1, N, N], [N, 70, N, N], "Inciblable tant que la carte n'attaque pas"),
   mk("backlash", "Contrecoup", "Autre", [50, N, N, N], [30, N, N, N], "Subit X % des dégâts infligés"),
@@ -89,7 +89,10 @@ export const TOX_CATALOG: ToxFamily[] = [
   mk("freeze", "Gel", "Contrôle", [N, N, 60, N], [N, N, 140, N], "Les dégâts et soins gèlent la cible (X dégâts si brisé)"),
   mk("temporality", "Temporalité", "Contrôle", [N, N, N, 1], [N, N, N, 190], "Les soins réduisent les temps de recharge de la cible de 1"),
   mk("vanish", "Disparition", "Contrôle", [N, N, N, 1], [N, N, N, 180], "Supprime le dernier passif de la cible"),
-  mk("aoe", "AoE", "Dégâts", [20, 40, 60, 80], [40, 80, 120, 180], "Attaque et soigne les cibles adjacentes à X % des dégâts", { estimated: true }),
+  mk("aoe", "AoE", "Dégâts", [20, 40, 80, 100], [45, 90, 135, 180], "Attaque et soigne les cibles adjacentes à X % des dégâts"),
+  mk("inversion", "Inversement", "Autre", [N, 1, N, N], [N, 40, N, N], "Les dégâts de la carte deviennent des soins, ses Éternités des Temporalités, et inversement"),
+  mk("metamorph", "Métamorphe", "Autre", [N, N, 1, N], [N, N, 120, N], "Transforme la carte en une carte aléatoire de la même rareté"),
+  mk("mystery", "Mystère", "Autre", [N, 1, N, N], [N, 70, N, N], "Donne un passif aléatoire"),
 ];
 
 export const LUCK_ODDS: number[][] = (() => {
@@ -139,6 +142,24 @@ export interface CAbility {
   actions: CAction[]; dmg: CAction[]; text: string; aoe: boolean; hasDmg: boolean; hasHeal: boolean;
   engine: boolean; prio: number; alliesAll: boolean; critOnlyCd: boolean;
   cost: { el: number; amt: number }[]; hpCost: number; randEnemy: boolean;
+  /** Cible au hasard parmi toutes les cartes du terrain (alliées comprises) / parmi les cartes alliées (soins). */
+  randField: boolean; randAlly: boolean;
+  /** Capacité « Choix » : indices des actions de chaque option, et Gel propre à chaque option. */
+  options: number[][] | null; optFreeze: boolean[];
+  /** Gel écrit dans le texte : 0 aucun, 1 toujours, 2 sur coup critique. */
+  freeze: 0 | 1 | 2;
+  /** Effets écrits dans le texte mais absents des actions chiffrées. */
+  textEternity: boolean; textVamp: number; textAoe: number; textVanish: boolean;
+  /** Provocation posée par la capacité. */
+  taunt: "none" | "self" | "randomAlly"; tauntTurns: number;
+  /** Familles d'actions qui ne s'appliquent qu'en cas de coup critique. */
+  critCond: string[];
+  /** Le temps de recharge baisse de 1 par carte détruite (Course folle). */
+  cdPerDead: boolean;
+  /** Éternité/Temporalité sur toutes les cartes du terrain, ou sur toutes les cartes alliées. */
+  cdAllField: boolean; cdAllies: boolean;
+  /** Absorbe une carte alliée (jamais joué par l'IA) / nécessite une Provocation alliée à briser. */
+  absorbAlly: boolean; needsTaunt: boolean;
 }
 export interface CTalent { slot: number; id: string; text: string; actions: CAction[]; grants: string | null }
 export interface CCard {
@@ -171,7 +192,120 @@ const SUPPORTED = new Set([
   "AddSCoeurTerre_C", "AddSCoeurOmbre_C", "AddSCoeurLumiere_C", "AddSMimetisme", "AddSRoulette", "AddSAttackMulticolor", "AddSCoeurAcier",
   "AddSPetitPrix", "AddSCasino", "AddSPunchingBag_C", "AddSParadoxe", "AddSInsensibleEternite", "AddSInsensibleDisparition", "AddCardMiss",
   "AddOppCardCriticChance", "healCasterWithoutElement", "DamageCasterHP", "AddSPlumePhoenix", "DamageWithCardElement", "AddAllPlayerMiss",
+  // ajoutés en v6
+  "AddOppCardMiss", "AddOppAbilityMiss", "AddAllOpponentCritick", "HealCasterWithOppHPMAX", "destroy", "RemoveTauntRunning", "StealElement",
+  "DamageOpponentHPMAX", "ResetCooldownTarget", "ResetSpamton", "DamageOnShield2", "AddOppCardBaseDamageCountActivation1",
+  "StealMaxHPWithDamageTarget", "AddPImmunity", "StealOppHPMax", "DamageCasterSpamton", "AddAllPlayerAttackWithCardType",
+  "ChangeElementTargetRandom", "AddOppHPMax",
 ]);
+
+/* ---------- capacités ---------- */
+const DMG_EFFECTS = new Set(["damage", "DamageAll", "DamageCasterHP", "DamageWithCardElement", "DamageOnShield2"]);
+const SPECIAL_DMG = new Set(["DamageOpponentHPMAX", "DamageCasterSpamton"]);
+
+/** Type d'action attendu pour une ligne de texte d'une option de « Choix » (null : ligne sans action). */
+function lineKind(l: string): string | null {
+  const t = l.trim();
+  if (/^Attaque/.test(t)) return "dmg";
+  if (/^(Se )?[Ss]oigne/.test(t)) return "heal";
+  if (/^Bonus/.test(t)) return "bonus";
+  if (/Éternité|Temporalité/.test(t)) return "cd";
+  if (/^Précision/.test(t)) return "acc";
+  if (/^Critique/.test(t)) return "crit";
+  return null;
+}
+const actKind = (e: string): string =>
+  DMG_EFFECTS.has(e) || SPECIAL_DMG.has(e) ? "dmg" : /^heal/.test(e) ? "heal" : /^AddAllPlayerAttack/.test(e) ? "bonus"
+    : e === "AddCooldown" ? "cd" : /Miss$/.test(e) ? "acc" : /Critic(k|Chance)/.test(e) ? "crit" : "other";
+
+/** Répartit les actions entre les options d'une capacité « Choix » en suivant l'ordre du texte. */
+function splitOptions(text: string, actions: CAction[]): number[][] | null {
+  if (!/^Choix/.test(text)) return null;
+  const parts = text.replace(/^Choix\s*/, "").split(/\n-{3,}\s*ou\s*-{3,}\n?/);
+  if (parts.length < 2) return null;
+  const idx = actions.map((x, i) => ({ x, i })).filter((o) => o.x.effect !== "_NULL");
+  const opts: number[][] = [];
+  let k = 0;
+  for (const part of parts) {
+    const plines = part.split("\n").filter((l) => lineKind(l));
+    const mine: number[] = [];
+    for (const l of plines) {
+      const kind = lineKind(l)!;
+      // une ligne « Attaque 15 Terre 15 Eau » porte une action de dégâts par élément cité
+      const n = kind === "dmg" ? Math.max(1, (l.match(/Feu|Eau|Terre|Nature|Ombre|Lumière|Éther/g) ?? []).length) : 1;
+      let took = 0;
+      while (took < n && k < idx.length && actKind(idx[k].x.effect) === kind) {
+        mine.push(idx[k].i);
+        k++;
+        took++;
+      }
+      if (!took && k < idx.length && plines.length === 1) { mine.push(idx[k].i); k++; }
+    }
+    opts.push(mine);
+  }
+  // reste non attribué (texte inhabituel) : réparti à la dernière option plutôt que perdu
+  while (k < idx.length) opts[opts.length - 1].push(idx[k++].i);
+  return opts.every((o) => o.length) ? opts : parts.map((_, i) => (idx[i] ? [idx[i].i] : [])).filter((o) => o.length);
+}
+
+function buildAbility(a: RawAbility, mapAct: (a: RawAction) => CAction, count: (x: CAction) => void): CAbility {
+  const actions = a.actions.map(mapAct);
+  for (const x of actions) count(x);
+  const t = a.effect;
+  const dmg = actions.filter((x) => x.kind === "damage" && DMG_EFFECTS.has(x.effect));
+  const hasHeal = actions.some((x) => /^heal/.test(x.effect));
+  const engine = actions.some((x) => /^AddAllPlayerAttack/.test(x.effect));
+  const hasDmg = dmg.length > 0 || actions.some((x) => SPECIAL_DMG.has(x.effect));
+  const cost: { el: number; amt: number }[] = [];
+  let hpCost = 0;
+  const cm = t.match(/\[Coût ([^\]]*)\]/);
+  if (cm) {
+    for (const part of cm[1].split("&")) {
+      const m = part.trim().match(/(\d+)\s+(\S+)/);
+      if (!m) continue;
+      if (m[2] === "PV") hpCost += +m[1];
+      else { const e = EL_FR.indexOf(m[2]); if (e >= 0) cost.push({ el: e, amt: +m[1] }); }
+    }
+  }
+  const randField = /Cible aléatoirement les cartes du terrain/.test(t);
+  const randEnemy = !randField && /Cible aléatoirement (les cartes adverses|une carte adverse|une carte non provoquée)|Cible une carte adverse aléatoire|\[Ennemi aléatoire\]|Ennemis aléatoires/.test(t);
+  const aoe = actions.some((x) => x.effect === "DamageAll")
+    || (hasDmg && !randEnemy && /Cible toutes les cartes adverses|(à|sur) toutes les cartes adverses|Attaque toutes les cartes adverses/.test(t));
+  const lines = t.split("\n").map((l) => l.trim());
+  const has = (re: RegExp) => lines.some((l) => re.test(l));
+  const critCond: string[] = [];
+  for (const l of lines) {
+    if (!/en cas de (coup )?critique/.test(l)) continue;
+    if (/Éternité|Temporalité/.test(l)) critCond.push("AddCooldown");
+    else if (/Bonus/.test(l)) critCond.push("AddAllPlayerAttack");
+    else if (/Critique/.test(l)) critCond.push("AddOppCardCriticChance", "AddCardCriticChance");
+  }
+  const hasCdAction = actions.some((x) => x.effect === "AddCooldown");
+  const taunt: CAbility["taunt"] = /Applique Provocation aléatoirement à une carte alliée|Cible aléatoirement une carte non provoquée/.test(t)
+    ? "randomAlly" : has(/^Applique Provocation/) ? "self" : "none";
+  return {
+    cost, hpCost, randEnemy, randField, randAlly: /Cible aléatoirement les cartes alliées/.test(t),
+    name: a.name, cd: a.cooldown, acc: a.precision, crit: a.critChance, critMult: a.critMultiplier || 2, uses: a.uses, echo: a.cooldownResetChance,
+    actions, dmg, text: t, aoe, hasDmg, hasHeal, engine,
+    prio: engine && !hasDmg ? 0 : !hasDmg && !hasHeal ? 1 : hasDmg ? 3 : 2,
+    alliesAll: /Cible toutes les cartes alliées|à toutes les cartes alliées|toutes les cartes alliées/.test(t),
+    critOnlyCd: critCond.includes("AddCooldown"),
+    options: splitOptions(t, actions),
+    optFreeze: /^Choix/.test(t) ? t.replace(/^Choix\s*/, "").split(/\n-{3,}\s*ou\s*-{3,}\n?/).map((p) => /(^|\n)(Applique )?Gel(\n|$)/.test(p)) : [],
+    freeze: /^Choix/.test(t) ? 0 : has(/^(Applique )?Gel$/) ? 1 : has(/^Gel en cas de (coup )?critique/) ? 2 : 0,
+    textEternity: !hasCdAction && has(/^Applique Éternité/),
+    textVamp: has(/^Vampirisme$/) ? 50 : 0,
+    textAoe: has(/^AoE$/) ? 20 : 0,
+    textVanish: has(/^Applique Disparition/),
+    taunt, tauntTurns: /pendant 2 tours/.test(t) ? 2 : 1,
+    critCond,
+    cdPerDead: /diminue de 1 pour chaque carte qui n'est plus sur le terrain/.test(t),
+    cdAllField: /toutes les cartes du terrain/.test(t) && hasCdAction,
+    cdAllies: /Cible toutes les cartes alliées/.test(t) && hasCdAction,
+    absorbAlly: /Absorbe une carte alliée/.test(t),
+    needsTaunt: actions.some((x) => x.effect === "RemoveTauntRunning"),
+  };
+}
 
 export function compile(ds: RawDataset): Compiled {
   // valeurs des passifs (Tox) lues directement dans les données: elles sont prioritaires sur la table intégrée
@@ -188,38 +322,11 @@ export function compile(ds: RawDataset): Compiled {
   let ok = 0;
   const cards: CCard[] = ds.cards.map((c) => {
     const mapAct = (a: RawAction): CAction => ({ effect: a.effect, kind: a.kind, min: a.min, max: a.max, el: elIdx(a.element) });
-    const abilities: CAbility[] = c.abilities.map((a) => {
-      const actions = a.actions.map(mapAct);
-      for (const x of actions) {
-        if (x.effect === "_NULL") continue;
-        total++;
-        if (SUPPORTED.has(x.effect)) ok++;
-      }
-      const dmg = actions.filter((x) => x.kind === "damage" && (x.effect === "damage" || x.effect === "DamageAll" || x.effect === "DamageCasterHP" || x.effect === "DamageWithCardElement"));
-      const hasHeal = actions.some((x) => /^heal/.test(x.effect));
-      const engine = actions.some((x) => /^AddAllPlayerAttack/.test(x.effect));
-      const hasDmg = dmg.length > 0;
-      const cost: { el: number; amt: number }[] = [];
-      let hpCost = 0;
-      const cm = a.effect.match(/\[Coût ([^\]]*)\]/);
-      if (cm) {
-        for (const part of cm[1].split("&")) {
-          const m = part.trim().match(/(\d+)\s+(\S+)/);
-          if (!m) continue;
-          if (m[2] === "PV") hpCost += +m[1];
-          else { const e = EL_FR.indexOf(m[2]); if (e >= 0) cost.push({ el: e, amt: +m[1] }); }
-        }
-      }
-      const randEnemy = /Cible aléatoirement (les cartes adverses|une carte adverse|une carte non provoquée)|Cible une carte adverse aléatoire|\[Ennemi aléatoire\]|Ennemis aléatoires/.test(a.effect);
-      return {
-        cost, hpCost, randEnemy,
-        name: a.name, cd: a.cooldown, acc: a.precision, crit: a.critChance, critMult: a.critMultiplier || 2, uses: a.uses, echo: a.cooldownResetChance,
-        actions, dmg, text: a.effect, aoe: actions.some((x) => x.effect === "DamageAll"), hasDmg, hasHeal, engine,
-        prio: engine && !hasDmg ? 0 : !hasDmg && !hasHeal ? 1 : hasDmg ? 3 : 2,
-        alliesAll: /Cible toutes les cartes alliées/.test(a.effect),
-        critOnlyCd: /critique/i.test(a.effect) && actions.some((x) => x.effect === "AddCooldown"),
-      };
-    });
+    const abilities: CAbility[] = c.abilities.map((a) => buildAbility(a, mapAct, (x) => {
+      if (x.effect === "_NULL") return;
+      total++;
+      if (SUPPORTED.has(x.effect)) ok++;
+    }));
     const talents: CTalent[] = c.talents.map((t) => ({ slot: t.slot, id: t.id, text: t.effect, actions: t.actions.map(mapAct), grants: t.grantsSkill }));
     for (const t of talents) for (const x of t.actions) { total++; if (SUPPORTED.has(x.effect)) ok++; }
     const skills: Tox[] = [];
