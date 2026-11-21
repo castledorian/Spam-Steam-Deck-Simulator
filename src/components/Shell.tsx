@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { useSpam } from "./SpamProvider";
 
 const LINKS = [
@@ -18,6 +19,8 @@ export function Nav() {
   const path = usePathname();
   const { info, ds, refresh, syncing, collection } = useSpam();
   const n = Object.keys(collection).length;
+  // téléphone : fait défiler la barre jusqu'au lien de la page affichée
+  useEffect(() => { document.querySelector('nav a[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "center" }); }, [path]);
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07040f]/85 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 sm:px-6 sm:py-3 lg:flex-nowrap">

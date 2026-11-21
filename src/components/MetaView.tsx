@@ -45,7 +45,7 @@ export function MetaView() {
         <div>
           <h1 className="font-display text-3xl text-white sm:text-4xl">Méta & Tier list</h1>
           <p className="mt-1 max-w-3xl text-sm text-white/65">
-            Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Le résultat est partagé et sert d&apos;adversaires de référence dans le simulateur.
+            Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Le résultat est mémorisé dans ce navigateur et sert d&apos;adversaires de référence dans le simulateur.
           </p>
         </div>
         <div className="panel flex flex-wrap items-center gap-3 p-3 text-sm">
