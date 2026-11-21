@@ -1,4 +1,8 @@
-.sync-message
 node_modules
 .next
-.env*.local
+out
+next-env.d.ts
+.sync-message
+public/data/status.json
+*.tsbuildinfo
+.env*
