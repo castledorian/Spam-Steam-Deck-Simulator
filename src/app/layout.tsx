@@ -1,27 +1,31 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import { DataProvider } from "@/components/DataProvider";
-import { Nav } from "@/components/Nav";
+import { SpamProvider } from "@/components/SpamProvider";
+import { Nav, Footer } from "@/components/Shell";
 
 export const metadata: Metadata = {
-  title: "SPAM Lab — Simulateur de decks, cartes, Tox & patchs",
+  title: "SpamLab — Simulateur de decks & base de données SPAM",
   description:
-    "Base de données complète du jeu SPAM (Steam) : cartes officielles, passifs, Tox, talents, patchs en direct et simulateur Monte-Carlo de decks basé sur votre collection.",
+    "Toutes les cartes officielles de SPAM (Steam), patchs, Tox, talents et un simulateur de decks basé sur votre collection avec statistiques de victoire.",
 };
-export const viewport: Viewport = { themeColor: "#09070f" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr">
-      <body className="antialiased">
-        <DataProvider>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet" />
+        <link rel="preconnect" href="https://spamgame.com" />
+      </head>
+      <body className="min-h-screen antialiased">
+        <SpamProvider>
           <Nav />
-          <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
-          <footer className="mx-auto max-w-7xl px-4 pb-10 pt-4 text-xs text-zinc-500 sm:px-6">
-            Projet de fan non officiel, non affilié à Ticroco Entreprise. « SPAM », les illustrations et les données appartiennent à leurs ayants droit ; chaque illustration est créditée à son artiste sur la fiche carte.
-          </footer>
-        </DataProvider>
+          <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6">{children}</main>
+          <Footer />
+        </SpamProvider>
       </body>
     </html>
   );
