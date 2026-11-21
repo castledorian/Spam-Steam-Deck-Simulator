@@ -236,7 +236,7 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
             <div key={c.id} className="card-cell group">
               <button
                 type="button"
-                className={`block w-full rounded-[1.6rem] text-left transition-transform duration-150 hover:-translate-y-1 ${mode === "collection" && has ? "owned-ring" : ""} ${mode === "collection" && !has ? "opacity-55 grayscale-[0.6] hover:opacity-90 hover:grayscale-0" : ""}`}
+                className={`block w-full rounded-[5.2%/3.6%] text-left transition-transform duration-150 hover:-translate-y-1 ${mode === "collection" && has ? "owned-ring" : ""} ${mode === "collection" && !has ? "opacity-55 grayscale-[0.6] hover:opacity-90 hover:grayscale-0" : ""}`}
                 onClick={() => (mode === "collection" ? setOwned(c.number, !has) : setOpen(c))}
                 aria-label={c.name}
               >
