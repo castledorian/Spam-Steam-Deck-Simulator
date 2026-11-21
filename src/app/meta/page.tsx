@@ -6,6 +6,7 @@ import { Loading, PageTitle, Section, pct } from "@/components/ui";
 import { useJob } from "@/components/useSim";
 import { cachedMeta, getMeta, getPool } from "@/lib/sim/session";
 import { roundRobin, type DeckResult, type Matrix, type Quality } from "@/lib/sim/search";
+import { cardName } from "@/lib/fr";
 
 const QUALITY: Record<Quality, string> = { fast: "Rapide (~20 s)", standard: "Standard (~1 min)", deep: "Profond (plusieurs min)" };
 
@@ -34,7 +35,7 @@ export default function MetaPage() {
     const m = await job.run((onP) => roundRobin(getPool(snap), top.map((t) => t.deck), games, onP));
     if (m) setMatrix(m);
   };
-  const short = (s: string) => (bySlug.get(s)?.name ?? s).split(/[ ,]+/)[0];
+  const short = (s: string) => cardName(bySlug.get(s), s).split(/[ ,]+/)[0];
 
   const order = matrix ? matrix.overall.map((v, i) => [v, i] as const).sort((a, b) => b[0] - a[0]).map((x) => x[1]) : [];
 
@@ -87,7 +88,7 @@ export default function MetaPage() {
                 <tr>
                   <th>Deck</th>
                   {order.map((j) => (
-                    <th key={j} className="text-center" title={matrix.decks[j].s.map((s) => bySlug.get(s)?.name).join(" · ")}>#{j + 1}</th>
+                    <th key={j} className="text-center" title={matrix.decks[j].s.map((s) => cardName(bySlug.get(s), s)).join(" · ")}>#{j + 1}</th>
                   ))}
                   <th className="text-center">Moy.</th>
                 </tr>
@@ -121,7 +122,7 @@ export default function MetaPage() {
                       <span className="rounded-lg bg-fuchsia-400 px-2 py-0.5 text-sm font-extrabold text-black">#{i + 1}</span>
                       <ElementMix slugs={r.deck.s} />
                     </div>
-                    <div className="mt-1 text-sm text-zinc-400">{r.deck.s.map((s) => bySlug.get(s)?.name).join(" · ")}</div>
+                    <div className="mt-1 text-sm text-zinc-400">{r.deck.s.map((s) => cardName(bySlug.get(s), s)).join(" · ")}</div>
                   </div>
                   <RateBadge r={r} />
                 </div>

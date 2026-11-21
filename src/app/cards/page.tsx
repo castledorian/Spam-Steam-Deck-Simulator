@@ -2,6 +2,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useData, useOwned } from "@/components/DataProvider";
 import { CardTile, EL_FR, ElIcon, Loading, PageTitle, RAR_FR } from "@/components/ui";
+import { cardName } from "@/lib/fr";
 
 const ELS = ["fire", "water", "earth", "nature", "shadow", "light", "ether"];
 const RARS = ["Common", "Rare", "Epic", "Legendary", "Divine"];
@@ -27,14 +28,14 @@ export default function CardsPage() {
       if (rar && c.rarity !== rar) return false;
       if (onlyOwned && !(c.slug in owned)) return false;
       if (n) {
-        const hay = norm([c.name, ...c.abilities.map((a) => a.name), ...c.talents.map((t) => t.name), ...c.startTox.map((t) => t.name)].join(" "));
+        const hay = norm([c.name, c.fr?.name ?? "", ...c.abilities.map((a) => a.name), ...(c.fr?.abilities ?? []).map((a) => a?.name ?? ""), ...c.talents.map((t) => t.name), ...(c.fr?.talents ?? []).map((t) => t.name), ...c.startTox.map((t) => t.name), ...(c.fr?.startTox ?? []).map((t) => t?.name ?? "")].join(" "));
         if (!hay.includes(n)) return false;
       }
       return true;
     });
     const ri = (r: string) => RARS.indexOf(r);
     l = [...l].sort((a, b) =>
-      sort === "hp" ? b.hp - a.hp : sort === "spamton" ? b.spamton - a.spamton : sort === "rarity" ? ri(b.rarity) - ri(a.rarity) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name),
+      sort === "hp" ? b.hp - a.hp : sort === "spamton" ? b.spamton - a.spamton : sort === "rarity" ? ri(b.rarity) - ri(a.rarity) || cardName(a).localeCompare(cardName(b), "fr") : cardName(a).localeCompare(cardName(b), "fr"),
     );
     return l;
   }, [snap, dq, el, rar, sort, onlyOwned, owned]);

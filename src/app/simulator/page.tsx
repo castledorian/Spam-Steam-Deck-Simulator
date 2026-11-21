@@ -6,8 +6,9 @@ import { DeckCards, ElementMix, RateBadge, ToxUse } from "@/components/DeckView"
 import { Loading, PageTitle, Section, pct } from "@/components/ui";
 import { useJob } from "@/components/useSim";
 import { getMeta, getPool } from "@/lib/sim/session";
-import { searchOwned, versus, wilson, type DeckResult, type Quality, type SearchInfo } from "@/lib/sim/search";
+import { searchOwned, versus, scoreConfidence, validateDeckCoverage, type DeckResult, type Quality, type SearchInfo } from "@/lib/sim/search";
 import type { DeckSpec } from "@/lib/sim/engine";
+import { cardName } from "@/lib/fr";
 
 const QUALITY: Record<Quality, string> = {
   fast: "Rapide (~15 s)",
@@ -64,12 +65,12 @@ export default function SimulatorPage() {
       return e;
     });
     if (r) {
-      const ci = wilson(r.w + r.d / 2, r.n);
-      setManualRes({ deck: d, w: r.w, d: r.d, n: r.n, rate: (r.w + r.d / 2) / r.n, ...ci });
+      const ci = scoreConfidence(r.w, r.d, r.n - r.w - r.d);
+      setManualRes({ deck: d, w: r.w, d: r.d, n: r.n, rate: (r.w + r.d / 2) / r.n, ...ci, ...validateDeckCoverage(snap, d) });
     }
   };
 
-  const sorted = [...snap.cards].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = [...snap.cards].sort((a, b) => cardName(a).localeCompare(cardName(b), "fr"));
   const manualOk = manual.every(Boolean) && new Set(manual).size === 4;
 
   return (
@@ -125,7 +126,7 @@ export default function SimulatorPage() {
             <div><div className="text-xl font-bold text-white">{info.candidates.toLocaleString("fr-FR")}</div><div className="text-zinc-400">decks évalués au 1er tour{info.exhaustive ? " (exhaustif)" : ""}</div></div>
             <div><div className="text-xl font-bold text-white">{info.games.toLocaleString("fr-FR")}</div><div className="text-zinc-400">parties simulées</div></div>
             <div><div className="text-xl font-bold text-white">{metaN}</div><div className="text-zinc-400">decks de méta affrontés</div></div>
-            <div><div className="text-xl font-bold text-white">IC 95 %</div><div className="text-zinc-400">intervalle de Wilson affiché</div></div>
+            <div><div className="text-xl font-bold text-white">IC 95 %</div><div className="text-zinc-400">Intervalle du score moyen (victoire = 1, nul = 0,5)</div></div>
           </div>
           <Section title="Vos meilleurs decks" sub="Taux de victoire contre la méta (les meilleurs decks de tout le pool, talents max) + 12 decks aléatoires. Alternance du premier joueur à chaque partie.">
             <div className="space-y-4">
@@ -138,13 +139,16 @@ export default function SimulatorPage() {
                         <ElementMix slugs={r.deck.s} />
                       </div>
                       <div className="mt-1 text-sm text-zinc-400">
-                        {r.deck.s.map((s) => bySlug.get(s)?.name).join(" · ")}
+                        {r.deck.s.map((s) => cardName(bySlug.get(s), s)).join(" · ")}
                       </div>
                     </div>
                     <RateBadge r={r} big />
                   </div>
                   <div className="grid gap-4 md:grid-cols-[minmax(0,420px)_1fr]">
-                    <DeckCards slugs={r.deck.s} lvls={r.deck.l} />
+                    <div className="space-y-2">
+                      <DeckCards slugs={r.deck.s} lvls={r.deck.l} />
+                      {r.experimental && <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200"><b>Résultat expérimental — fidélité non certifiée</b><ul className="mt-1 list-disc pl-4">{r.validationWarnings?.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
+                    </div>
                     <div className="space-y-3 text-sm">
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="rounded-lg bg-white/5 p-2"><div className="text-lg font-bold text-white">{r.vsRandom ? pct(r.vsRandom.rate, 0) : "—"}</div><div className="text-xs text-zinc-400">vs decks aléatoires</div></div>
@@ -167,7 +171,7 @@ export default function SimulatorPage() {
                         <tbody>
                           {[...detail.rows].sort((a, b) => a.rate - b.rate).map((d) => (
                             <tr key={d.deck.s.join()}>
-                              <td className="text-zinc-300">{d.deck.s.map((s) => bySlug.get(s)?.name).join(" · ")}</td>
+                              <td className="text-zinc-300">{d.deck.s.map((s) => cardName(bySlug.get(s), s)).join(" · ")}</td>
                               <td className={d.rate >= 0.5 ? "text-emerald-400" : "text-red-400"}>{pct(d.rate)}</td>
                               <td className="text-zinc-500">{pct(d.lo, 0)} – {pct(d.hi, 0)}</td>
                             </tr>
@@ -190,7 +194,7 @@ export default function SimulatorPage() {
               <select key={i} className="input" value={v} onChange={(e) => setManual((m) => m.map((x, k) => (k === i ? e.target.value : x)))}>
                 <option value="">Carte {i + 1}…</option>
                 {sorted.map((c) => (
-                  <option key={c.slug} value={c.slug}>{c.name}{c.slug in owned ? " ✓" : ""}</option>
+                  <option key={c.slug} value={c.slug}>{cardName(c)}{c.slug in owned ? " ✓" : ""}</option>
                 ))}
               </select>
             ))}
@@ -201,7 +205,10 @@ export default function SimulatorPage() {
           </div>
           {manualRes && (
             <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,420px)_1fr]">
-              <DeckCards slugs={manualRes.deck.s} lvls={manualRes.deck.l} />
+              <div className="space-y-2">
+                <DeckCards slugs={manualRes.deck.s} lvls={manualRes.deck.l} />
+                {manualRes.experimental && <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200"><b>Résultat expérimental — fidélité non certifiée</b><ul className="mt-1 list-disc pl-4">{manualRes.validationWarnings?.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
+              </div>
               <div><RateBadge r={manualRes} big /><p className="mt-2 text-sm text-zinc-400">Contre {metaN || "les"} decks de méta, premier joueur alterné.</p></div>
             </div>
           )}

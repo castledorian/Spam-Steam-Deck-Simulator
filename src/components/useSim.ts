@@ -35,7 +35,7 @@ export function useJob() {
       return await fn(onP);
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
-      if (m !== "cancelled") setError(m);
+      if (m !== "cancelled" && m !== "Simulation cancelled") setError(m);
       return null;
     } finally {
       setRunning(false);

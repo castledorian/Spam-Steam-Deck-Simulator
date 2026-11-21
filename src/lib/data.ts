@@ -4,6 +4,7 @@ import { snapshots } from "@/db/schema";
 import seed from "@/data/seed.json";
 import type { Snapshot } from "./types";
 import { buildSnapshot } from "./sync";
+import { checkSnapshot, normalizeSnapshot } from "./snapshot";
 
 const STALE_MS = 3 * 3600 * 1000;
 
@@ -37,15 +38,21 @@ export async function latestSnapshot(): Promise<Snapshot> {
     await ensureTable();
     const rows = await db.select().from(snapshots).orderBy(desc(snapshots.id)).limit(1);
     if (rows[0]) {
-      state.mem = rows[0].data;
+      // Le snapshot embarqué peut être plus récent que la base (mise à jour par commit) : on garde le plus frais.
+      const fromDb = normalizeSnapshot(rows[0].data);
+      const bundled = normalizeSnapshot(seed as unknown as Snapshot);
+      state.mem = new Date(bundled.fetchedAt) > new Date(fromDb.fetchedAt) ? bundled : fromDb;
       return state.mem;
     }
-    const s = seed as unknown as Snapshot;
+    const s = normalizeSnapshot(seed as unknown as Snapshot);
     await db.insert(snapshots).values({ gameVersion: s.gameVersion, cardCount: s.cards.length, data: s });
     state.mem = s;
     return s;
   } catch {
-    return seed as unknown as Snapshot;
+    // Keep the bundled snapshot in memory when PostgreSQL is unavailable.
+    // This allows the site and simulator to remain usable in local/offline mode.
+    state.mem = normalizeSnapshot(seed as unknown as Snapshot);
+    return state.mem;
   }
 }
 
@@ -58,7 +65,9 @@ export async function runSync(): Promise<{ ok: boolean; message: string; snapsho
   state.running = true;
   try {
     const fresh = await buildSnapshot();
-    if (fresh.cards.length < 100) throw new Error(`Données incomplètes (${fresh.cards.length} cartes)`);
+    normalizeSnapshot(fresh);
+    const errors = checkSnapshot(fresh, state.mem);
+    if (errors.length) throw new Error(`Snapshot rejeté : ${errors.join(" ; ")}`);
     await ensureTable();
     await db.insert(snapshots).values({ gameVersion: fresh.gameVersion, cardCount: fresh.cards.length, data: fresh });
     await db.execute(sql`delete from snapshots where id not in (select id from snapshots order by id desc limit 5)`);
@@ -80,6 +89,8 @@ export async function snapshotWithRefresh(): Promise<Snapshot> {
   const s = await latestSnapshot();
   const age = Date.now() - new Date(s.fetchedAt).getTime();
   const recentTry = state.lastRun && Date.now() - state.lastRun < 15 * 60 * 1000;
-  if (age > STALE_MS && !state.running && !recentTry) void runSync();
+  // Sans base de données, la fraîcheur est assurée par la tâche planifiée (scripts/sync-snapshot.ts) :
+  // inutile de relancer une synchro complète à chaque visite.
+  if (process.env.DATABASE_URL && age > STALE_MS && !state.running && !recentTry) void runSync();
   return s;
 }

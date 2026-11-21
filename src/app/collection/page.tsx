@@ -21,7 +21,7 @@ export default function CollectionPage() {
   const list = useMemo(() => {
     if (!snap) return [];
     const n = norm(dq);
-    return snap.cards.filter((c) => (!el || c.element === el) && (only === "all" || (only === "owned") === (c.slug in owned)) && (!n || norm(c.name).includes(n)));
+    return snap.cards.filter((c) => (!el || c.element === el) && (only === "all" || (only === "owned") === (c.slug in owned)) && (!n || norm(c.name + " " + (c.fr?.name ?? "")).includes(n)));
   }, [snap, dq, el, only, owned]);
 
   useEffect(() => setLimit(60), [dq, el, only]);

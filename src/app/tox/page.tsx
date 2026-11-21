@@ -1,8 +1,9 @@
 "use client";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useData } from "@/components/DataProvider";
-import { Loading, PageTitle, RAR_COLOR, RAR_FR, Section } from "@/components/ui";
+import { Loading, PageTitle, RAR_COLOR, RAR_FR, Section, ToxIcon } from "@/components/ui";
 import { LUCK_TABLE } from "@/lib/sim/engine";
+import { nameIndex, talentInfoFr, toxCategoryFr, toxFr } from "@/lib/fr";
 
 const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const CAT_FR: Record<string, string> = {
@@ -28,9 +29,11 @@ export default function ToxPage() {
     return [...m.entries()];
   }, [snap]);
   const nameToSlug = useMemo(() => new Map([...bySlug.values()].map((c) => [c.name, c.slug])), [bySlug]);
+  const frName = useMemo(() => (snap ? nameIndex(snap) : new Map<string, string>()), [snap]);
+  const fn = (en: string) => frName.get(en.toLowerCase()) ?? en;
   if (loading || !snap) return <Loading />;
   const n = norm(dq);
-  const talents = snap.talents.filter((t) => !n || norm(t.name + " " + t.text).includes(n));
+  const talents = snap.talents.filter((t) => !n || norm(t.name + " " + t.text + " " + talentInfoFr(t).name + " " + talentInfoFr(t).text).includes(n));
 
   return (
     <div>
@@ -84,17 +87,16 @@ export default function ToxPage() {
 
       {tab === "tox" &&
         cats.map(([cat, list]) => {
-          const shown = list.filter((t) => !n || norm(t.name + " " + t.text).includes(n));
+          const shown = list.filter((t) => !n || norm(t.name + " " + t.text + " " + toxFr(t).name + " " + toxFr(t).text).includes(n));
           if (!shown.length) return null;
           return (
-            <Section key={cat} title={CAT_FR[cat] ?? cat}>
+            <Section key={cat} title={CAT_FR[cat] ?? toxCategoryFr(cat, list[0])}>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {shown.map((t) => (
                   <div key={t.id} className="card-panel p-3" style={{ contentVisibility: "auto", containIntrinsicSize: "200px 170px" }}>
                     <div className="mb-2 flex items-center gap-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/tox/${t.icon}`} alt="" width={36} height={36} className="h-9 w-9" />
-                      <div className="font-bold text-white">{t.name}</div>
+                      <ToxIcon icon={t.icon} />
+                      <div className="font-bold text-white">{toxFr(t).name}</div>
                     </div>
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {t.ladder.map((l) => (
@@ -103,9 +105,9 @@ export default function ToxPage() {
                         </span>
                       ))}
                     </div>
-                    <p className="text-sm text-zinc-300">{t.text}</p>
+                    <p className="text-sm text-zinc-300">{toxFr(t).text}</p>
                     {t.startsOn.length > 0 && (
-                      <p className="mt-2 text-xs text-zinc-500">Départ sur : {t.startsOn.slice(0, 6).join(", ")}{t.startsOn.length > 6 ? "…" : ""}</p>
+                      <p className="mt-2 text-xs text-zinc-500">Départ sur : {t.startsOn.slice(0, 6).map(fn).join(", ")}{t.startsOn.length > 6 ? "…" : ""}</p>
                     )}
                   </div>
                 ))}
@@ -118,13 +120,13 @@ export default function ToxPage() {
         <div className="grid gap-2 md:grid-cols-2">
           {talents.map((t) => (
             <div key={t.id} className="card-panel p-3" style={{ contentVisibility: "auto", containIntrinsicSize: "100px 90px" }}>
-              <div className="font-semibold text-white">{t.name}</div>
-              <div className="text-sm text-zinc-300">{t.text}</div>
+              <div className="font-semibold text-white">{talentInfoFr(t).name}</div>
+              <div className="text-sm text-zinc-300">{talentInfoFr(t).text}</div>
               <div className="mt-1 text-xs text-zinc-500">
                 {t.cards.map((c, i) => (
                   <span key={c}>
                     {i > 0 && ", "}
-                    {nameToSlug.get(c) ? <a className="hover:text-amber-300" href={`/cards/${nameToSlug.get(c)}`}>{c}</a> : c}
+                    {nameToSlug.get(c) ? <a className="hover:text-amber-300" href={`/cards/${nameToSlug.get(c)}`}>{fn(c)}</a> : fn(c)}
                   </span>
                 ))}
               </div>

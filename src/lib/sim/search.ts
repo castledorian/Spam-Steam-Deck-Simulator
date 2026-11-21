@@ -1,3 +1,5 @@
+import { toxKey } from "../parse";
+import { abilityFr, cardName, talentFr, warningFr } from "../fr";
 import type { Snapshot } from "../types";
 import { mulberry, type DeckSpec, type EvalResult, type Rng } from "./engine";
 import type { Job } from "./worker";
@@ -19,9 +21,13 @@ export interface DeckResult {
   vsRandom?: { rate: number; n: number };
   tox?: Record<string, number>;
   turns?: number;
+  /** True when known unsupported mechanics are present; absence is not proof of game parity. */
+  experimental?: boolean;
+  validationWarnings?: string[];
 }
 export type Progress = (p: { phase: string; pct: number; detail?: string }) => void;
 
+/** Wilson interval for genuinely binary observations only (no fractional draws). */
 export function wilson(wins: number, n: number, z = 1.96): { lo: number; hi: number } {
   if (n === 0) return { lo: 0, hi: 1 };
   const p = wins / n;
@@ -32,8 +38,61 @@ export function wilson(wins: number, n: number, z = 1.96): { lo: number; hi: num
   return { lo: Math.max(0, c - h), hi: Math.min(1, c + h) };
 }
 
+/** Empirical-Bernstein confidence interval for a score in [0, 1].
+ * Outcomes are 0 (loss), 0.5 (draw), 1 (win). Unlike a naive normal interval,
+ * this remains non-degenerate when every observed match has the same outcome.
+ * Assumes independent match observations; use block/pair bootstrap for paired designs.
+ */
+export function scoreConfidence(wins: number, draws: number, losses: number, confidence = 0.95): { lo: number; hi: number } {
+  const n = wins + draws + losses;
+  if (n <= 0) return { lo: 0, hi: 1 };
+  const mean = (wins + 0.5 * draws) / n;
+  if (n === 1) return { lo: 0, hi: 1 };
+  const variance = (wins * (1 - mean) ** 2 + draws * (0.5 - mean) ** 2 + losses * mean ** 2) / (n - 1);
+  const delta = Math.max(1e-9, Math.min(0.5, 1 - confidence));
+  const logTerm = Math.log(3 / delta);
+  const radius = Math.sqrt((2 * variance * logTerm) / n) + (3 * logTerm) / n;
+  return { lo: Math.max(0, mean - radius), hi: Math.min(1, mean + radius) };
+}
+
 const key = (d: DeckSpec) => [...d.s].sort().join("|");
 const rate = (r: EvalResult) => (r.w + r.d / 2) / Math.max(1, r.n);
+
+/** Conservative coverage check: unknown/partially modeled mechanics must not be
+ * presented as a certified result. This is not proof of full game parity. */
+export function validateDeckCoverage(snap: Snapshot, deck: DeckSpec): { experimental: boolean; validationWarnings: string[] } {
+  const bySlug = new Map(snap.cards.map((card) => [card.slug, card]));
+  const warnings: string[] = [];
+  deck.s.forEach((slug, idx) => {
+    const card = bySlug.get(slug);
+    if (!card) {
+      warnings.push(`Carte inconnue dans le snapshot : ${slug}`);
+      return;
+    }
+    const nom = cardName(card);
+    card.abilities.forEach((ability, i) => {
+      const issues = new Set((ability.sim.unsupported ?? []).map(warningFr));
+      // Les snapshots antérieurs au marquage explicite : on détecte les choix depuis le texte.
+      if (ability.lines.some((l) => /^\s*Choice\s*$/i.test(l) || /^-{3,}\s*or\s*-{3,}$/i.test(l.trim()))) issues.add(warningFr("Choice:"));
+      for (const issue of issues) warnings.push(`${nom} / ${abilityFr(card, i).name} : ${issue}`);
+    });
+    // Reproduit le choix du moteur (engine.ts) : meilleur talent débloqué ET modélisé.
+    const lvl = deck.l?.[idx] ?? 3;
+    const unlocked = card.talents.filter((t) => t.slot <= lvl);
+    const wanted = unlocked.find((t) => t.best) ?? unlocked[0];
+    const modeled = unlocked.filter((t) => t.modeled);
+    const used = modeled.find((t) => t.best) ?? modeled[0];
+    if (wanted && !wanted.modeled) {
+      const remplace = used ? `la simulation utilise « ${talentFr(card, used.slot).name} » à la place` : "aucun talent n'est appliqué";
+      warnings.push(`${nom} / talent « ${talentFr(card, wanted.slot).name} » non modélisé : ${remplace}`);
+    }
+    for (const t of card.startTox) {
+      const k = toxKey(t.name).key;
+      if (!snap.tox.some((f) => f.name.toLowerCase() === t.name.toLowerCase() || toxKey(f.name).key === k || toxKey(f.id).key === k)) warnings.push(`${nom} / Tox de départ « ${t.name} » introuvable : ignoré par le moteur`);
+    }
+  });
+  return { experimental: warnings.length > 0, validationWarnings: warnings };
+}
 
 function shuffle<T>(a: T[], rng: Rng): T[] {
   for (let i = a.length - 1; i > 0; i--) {
@@ -91,7 +150,8 @@ class Runner {
     this.onP({ phase, pct: 0 });
   }
   async eval(decks: DeckSpec[], opps: DeckSpec[], games: number, seed: number, stats = false): Promise<EvalResult[]> {
-    const jobs: Job[] = decks.map((a, i) => ({ a, games, seed: seed * 7919 + i * 104729 + 13, stats }));
+    const commonSeed = (seed * 7919 + 13) >>> 0;
+    const jobs: Job[] = decks.map((a) => ({ a, games, seed: commonSeed, stats }));
     return this.pool.run(jobs, opps, (n) => {
       this.done += n;
       this.onP({ phase: this.phase, pct: Math.min(1, this.done / this.total) });
@@ -158,8 +218,9 @@ export async function computeMeta(pool: SimPool, snap: Snapshot, quality: Qualit
   const fin = await run.eval(top, [...gaunt, ...top.slice(0, 20)], q.final, seed + 999);
   const list: DeckResult[] = top
     .map((d, i) => {
-      const ci = wilson(fin[i].w + fin[i].d / 2, fin[i].n);
-      return { deck: d, w: fin[i].w, d: fin[i].d, n: fin[i].n, rate: rate(fin[i]), ...ci };
+      const ci = scoreConfidence(fin[i].w, fin[i].d, fin[i].n - fin[i].w - fin[i].d);
+      const coverage = validateDeckCoverage(snap, d);
+      return { deck: d, w: fin[i].w, d: fin[i].d, n: fin[i].n, rate: rate(fin[i]), ...ci, ...coverage };
     })
     .sort((a, b) => b.rate - a.rate);
   // dedupe by card set
@@ -312,9 +373,10 @@ export async function searchOwned(
   games += finalists.length * (fg + q.final);
   const results: DeckResult[] = finalists
     .map((d, i) => {
-      const ci = wilson(fin[i].w + fin[i].d / 2, fin[i].n);
+      const ci = scoreConfidence(fin[i].w, fin[i].d, fin[i].n - fin[i].w - fin[i].d);
       return {
         deck: d, w: fin[i].w, d: fin[i].d, n: fin[i].n, rate: rate(fin[i]), ...ci,
+        ...validateDeckCoverage(snap, d),
         vsRandom: { rate: rate(vr[i]), n: vr[i].n }, tox: fin[i].tox, turns: fin[i].turns,
       };
     })
@@ -357,5 +419,5 @@ export async function versus(pool: SimPool, deck: DeckSpec, opps: DeckSpec[], ga
   const jobs: Job[] = opps.map((o, i) => ({ a: deck, o: [o], games, seed: 99 + i * 17 }));
   run.setPhase("Duels détaillés", jobs.length * games);
   const res = await run.evalJobs(jobs, []);
-  return res.map((r, i) => ({ deck: opps[i], w: r.w, d: r.d, n: r.n, rate: rate(r), ...wilson(r.w + r.d / 2, r.n) }));
+  return res.map((r, i) => ({ deck: opps[i], w: r.w, d: r.d, n: r.n, rate: rate(r), ...scoreConfidence(r.w, r.d, r.n - r.w - r.d) }));
 }
