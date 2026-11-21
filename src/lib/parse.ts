@@ -60,15 +60,17 @@ function range(a: string): [number, number] {
 }
 
 export function parseEffect(rawLines: string[]): AbilitySim {
-  // keep only the first option of a "Choice"
+  // We still parse the first branch as an experimental approximation, but never
+  // silently certify a Choice ability: the alternatives are not modeled yet.
+  const hasChoice = rawLines.some((l) => /^\s*Choice\s*$/i.test(l) || /^-{3,}\s*or\s*-{3,}$/i.test(l.trim()));
   const lines: string[] = [];
   for (const l of rawLines) {
-    if (/^-{3,}\s*or\s*-{3,}$/.test(l.trim())) break;
-    if (l.trim() === "Choice") continue;
+    if (/^-{3,}\s*or\s*-{3,}$/i.test(l.trim())) break;
+    if (/^\s*Choice\s*$/i.test(l)) continue;
     lines.push(l);
   }
   const text = lines.join("\n");
-  const sim: AbilitySim = { hits: [], target: "one", times: 1, heals: [], pts: [] };
+  const sim: AbilitySim = { hits: [], target: "one", times: 1, heals: [], pts: [], ...(hasChoice ? { unsupported: ["Choice: alternatives not modeled; first branch parsed for experimental use"] } : {}) };
 
   const allEnemies = /all enemy cards|All enemies|to all enemies/i.test(text);
   const randomEnemies = /Random enemies|\[Random enemy\]|\bRandom\b|random cards on the field/.test(text);
@@ -247,6 +249,14 @@ function section(h: string, name: string): string {
   return h.slice(i, j < 0 ? i + 40000 : j);
 }
 
+/** Clé de correspondance des Tox : « Fire Heart », « Fireheart », « Rare AOE » → fireheart / aoe. */
+export function toxKey(n: string): { key: string; rarity?: "Common" | "Rare" | "Epic" | "Legendary" } {
+  const m = n.trim().match(/^(Common|Rare|Epic|Legendary)\s+(.+)$/i);
+  const base = m ? m[2] : n;
+  const rarity = m ? ((m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()) as "Common" | "Rare" | "Epic" | "Legendary") : undefined;
+  return { key: base.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, ""), rarity };
+}
+
 export function toxIdFromName(n: string) {
   return n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -380,6 +390,8 @@ export function parseCardPage(raw: string, slug: string): Card | null {
     const e = lc(r[3]) as El6;
     if (e in card.res) card.res[e] = (r[1] === "-" || r[1] === "−" ? -1 : 1) * num(r[2]);
   }
+  const img = h.match(/<img[^>]+src="((?:https:\/\/metabot\.gg)?\/[^"]*\/spam\/cards\/[^"]+\.(?:webp|png|jpg))"/);
+  if (img) card.image = img[1].startsWith("http") ? img[1] : `https://metabot.gg${img[1]}`;
   const art = h.match(/href="\/en\/spam\/artists#[^"]*">([^<]+)</);
   if (art) card.artist = decode(art[1]);
   return card;
@@ -396,7 +408,10 @@ export function parseToxPage(raw: string): ToxFamily[] {
   const seen = new Set<string>();
   for (const t of tiles) {
     const id = (t.match(/id="([^"]+)"/) || [, ""])[1];
-    const name = textOf((t.match(/famHead">[\s\S]*?<a href="[^"]*">([\s\S]*?)<\/a>/) || [, ""])[1]);
+    let name = textOf((t.match(/famHead">[\s\S]*?<a href="[^"]*">([\s\S]*?)<\/a>/) || [, ""])[1]);
+    // Familles à un seul palier : pas de lien dans l'en-tête, on lit le titre brut puis l'id.
+    if (!name) name = textOf((t.match(/famHead">[\s\S]*?<(?:h\d|b|strong)[^>]*>([\s\S]*?)<\/(?:h\d|b|strong)>/) || [, ""])[1]);
+    if (!name && id) name = id.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
     const category = textOf((t.match(/famSub">([\s\S]*?)<\/span>/) || [, ""])[1]);
     const icon = (t.match(/src="\/web\/spam\/tox\/([^"]+)"/) || [, ""])[1];
     const ladder: ToxStep[] = [];

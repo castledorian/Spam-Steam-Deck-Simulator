@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { memo, type ReactNode } from "react";
 import type { Card, El } from "@/lib/types";
+import { cardName } from "@/lib/fr";
 
 export const EL_COLOR: Record<string, string> = {
   fire: "#FF8A4C",
@@ -21,6 +22,7 @@ export const EL_FR: Record<string, string> = {
   light: "Lumière",
   ether: "Éther",
 };
+const EL_GLYPH: Record<string, string> = { fire: "🔥", water: "💧", earth: "⛰️", nature: "🌿", shadow: "🌑", light: "☀️", ether: "✦" };
 export const RAR_COLOR: Record<string, string> = {
   Common: "#A8A4B4",
   Rare: "#4FB3FF",
@@ -31,19 +33,17 @@ export const RAR_COLOR: Record<string, string> = {
 export const RAR_FR: Record<string, string> = { Common: "Commune", Rare: "Rare", Epic: "Épique", Legendary: "Légendaire", Divine: "Divine" };
 
 export function ElIcon({ el, size = 20 }: { el: El | string; size?: number }) {
-  if (el === "ether")
-    return (
-      <span
-        className="inline-flex items-center justify-center rounded-full text-[10px] font-bold text-black"
-        style={{ width: size, height: size, background: EL_COLOR.ether }}
-        title="Éther"
-      >
-        ✦
-      </span>
-    );
+  // Pastille autonome : aucune dépendance à des fichiers d'icônes absents du dépôt.
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={`/elements/${el}.webp`} alt={EL_FR[el] ?? el} width={size} height={size} style={{ width: size, height: size }} className="inline-block" />
+    <span
+      className="inline-flex shrink-0 items-center justify-center rounded-full leading-none"
+      style={{ width: size, height: size, background: (EL_COLOR[el] ?? "#888") + "33", boxShadow: `inset 0 0 0 1.5px ${EL_COLOR[el] ?? "#888"}`, fontSize: size * 0.6 }}
+      title={EL_FR[el] ?? el}
+      role="img"
+      aria-label={EL_FR[el] ?? el}
+    >
+      {EL_GLYPH[el] ?? "✦"}
+    </span>
   );
 }
 
@@ -60,8 +60,20 @@ export function Pill({ children, color, title }: { children: ReactNode; color?: 
 }
 
 export function SpamtonIcon({ size = 14 }: { size?: number }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/icons/spamton.webp" alt="Spamtons" width={size} height={size} style={{ width: size, height: size }} className="inline-block" />;
+  return (
+    <span className="inline-block leading-none text-amber-300" style={{ fontSize: size }} role="img" aria-label="Spamtons" title="Spamtons">
+      ⬢
+    </span>
+  );
+}
+
+/** Icône de Tox (téléchargée par la synchro dans public/tox) ; masquée si absente. */
+export function ToxIcon({ icon, size = 36 }: { icon?: string; size?: number }) {
+  if (!icon) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={`/tox/${icon}`} alt="" width={size} height={size} style={{ width: size, height: size }} onError={(e) => (e.currentTarget.style.display = "none")} />
+  );
 }
 
 /** Official illustration inside a lightweight CSS frame (GPU-friendly). */
@@ -79,8 +91,25 @@ export const CardFace = memo(function CardFace({ card, className = "", dim = fal
         filter: dim ? "grayscale(0.9) brightness(0.55)" : undefined,
       }}
     >
+      <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-30" style={{ background: `radial-gradient(circle at 50% 35%, ${ec}55, transparent 70%)` }} aria-hidden>
+        {EL_GLYPH[card.element] ?? "✦"}
+      </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/cards/${card.slug}.webp`} alt={card.name} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+      <img
+        src={`/cards/${card.slug}.webp`}
+        alt={cardName(card)}
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover"
+        onError={(e) => {
+          const img = e.currentTarget;
+          // 1er repli : illustration distante relevée par la synchro ; 2e : on masque (fond élémentaire).
+          if (card.image && img.dataset.fallback !== "1") {
+            img.dataset.fallback = "1";
+            img.src = card.image;
+          } else img.style.display = "none";
+        }}
+      />
       <div className="absolute left-1.5 top-1.5 rounded-full bg-black/70 p-0.5 ring-1" style={{ ["--tw-ring-color" as string]: ec }}>
         <ElIcon el={card.element} size={22} />
       </div>
@@ -92,7 +121,7 @@ export const CardFace = memo(function CardFace({ card, className = "", dim = fal
         </div>
       )}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-1.5 pt-6">
-        <div className="truncate text-[11px] font-semibold leading-tight text-white drop-shadow sm:text-xs">{card.name}</div>
+        <div className="truncate text-[11px] font-semibold leading-tight text-white drop-shadow sm:text-xs">{cardName(card)}</div>
         <div className="mt-0.5 flex items-center justify-between text-[10px] text-zinc-200">
           <span className="text-red-300">♥ {card.hp}</span>
           <span className="inline-flex items-center gap-0.5">

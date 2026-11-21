@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SPAM — Deck Lab (hors ligne)</title>
+<style>
+:root{color-scheme:dark;--bg:#101014;--panel:#1b1b23;--line:#343442;--txt:#f4f1e9;--muted:#aaa8b6;--gold:#f4bd4f;--green:#72d6a0}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#30251c 0,transparent 34%),var(--bg);color:var(--txt);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:26px max(18px,calc((100vw - 1200px)/2));border-bottom:1px solid var(--line)}h1{margin:0;font-size:clamp(25px,4vw,38px)}header p{color:var(--muted);margin:7px 0 0}.wrap{max-width:1200px;margin:auto;padding:22px 18px 60px}.notice{border:1px solid #79602d;background:#342a19;padding:12px 14px;border-radius:12px;margin-bottom:18px;color:#f6dfad}
+.layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);gap:18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px;min-width:0}.tools{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px}input,select,button{font:inherit;border-radius:9px;border:1px solid var(--line);padding:10px 12px;background:#111118;color:var(--txt)}input{flex:1;min-width:180px}button{cursor:pointer}button:hover{border-color:var(--gold)}button.primary{background:var(--gold);color:#211707;border-color:var(--gold);font-weight:750}button:disabled{opacity:.4;cursor:not-allowed}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px;max-height:70vh;overflow:auto;padding-right:3px}.card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#15151c}.card h3{margin:0 0 3px;font-size:16px}.meta{font-size:12px;color:var(--muted)}.stats{display:flex;gap:12px;margin:9px 0;font-size:13px}.stats b{color:var(--gold)}.small{font-size:12px;color:var(--muted)}.card button{width:100%;margin-top:9px;padding:7px}.card button.added{color:var(--green);border-color:#376e53}
+h2{font-size:19px;margin:0 0 12px}.slots{display:grid;gap:8px}.slot{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#121219;border:1px dashed #494957;border-radius:10px;gap:10px}.slot strong{font-size:14px}.slot button{padding:5px 9px}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}.metric{background:#121219;border-radius:10px;padding:11px}.metric b{display:block;font-size:22px;color:var(--gold)}.metric span{font-size:12px;color:var(--muted)}
+.detail{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}.detail h3{font-size:14px;margin:9px 0 4px;color:var(--gold)}.detail p{margin:3px 0;font-size:13px}.footer{color:var(--muted);font-size:12px;margin-top:18px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.cards{max-height:none}.side{order:-1}}
+</style></head><body>
+<header><h1>SPAM — Deck Lab</h1><p>Explorateur de cartes et constructeur de deck · fichier autonome, fonctionne hors ligne</p></header>
+<div class="wrap">
+<div class="notice"><b>À savoir :</b> cet outil permet d’explorer les données du projet et de construire/analyser un deck. Les indicateurs de dégâts sont des estimations descriptives, pas une simulation de combat complète. Les effets complexes, Tox en jeu, ordre des tours et RNG ne sont pas simulés ici.</div>
+<div class="layout">
+<section class="panel"><h2>Base de cartes <span class="small" id="count"></span></h2>
+<div class="tools"><input id="search" placeholder="Rechercher une carte, capacité, élément…"><select id="element"><option value="">Tous les éléments</option></select><select id="rarity"><option value="">Toutes raretés</option></select></div>
+<div class="cards" id="cards"></div></section>
+<aside class="panel side"><h2>Mon deck <span class="small" id="deckcount">0/4</span></h2>
+<div class="slots" id="slots"></div>
+<div class="metrics" id="metrics"></div>
+<div class="tools"><button class="primary" id="export">Exporter le deck JSON</button><button id="clear">Vider</button></div>
+<div class="detail" id="detail"><p class="small">Ajoute jusqu’à 4 cartes pour afficher les détails du deck.</p></div>
+</aside></div>
+<div class="footer" id="source"></div></div>
+<script>
+const DB=/*__DB__*/null;
+const cards=DB.cards||[];let deck=[];
+const nm=c=>(c.fr&&c.fr.name)||c.name;
+const ab=(c,i)=>(c.fr&&c.fr.abilities&&c.fr.abilities[i])||c.abilities[i];
+const tl=(c,t)=>(c.fr&&c.fr.talents||[]).find(x=>x.slot===t.slot)||t;
+const rarFr={Common:"Commune",Rare:"Rare",Epic:"Épique",Legendary:"Légendaire",Divine:"Divine"};
+const $=s=>document.querySelector(s);
+const fmt=n=>Number(n||0).toLocaleString('fr-FR');
+const elNames={fire:"Feu",water:"Eau",earth:"Terre",nature:"Nature",shadow:"Ombre",light:"Lumière",ether:"Éther"};
+function avgAbility(a){let sim=a.sim||{},hits=sim.hits||[];return hits.reduce((t,h)=>t+((h.min||0)+(h.max||h.min||0))/2*(sim.times||1),0)*(a.accuracy??1)}
+function avgCard(c){let as=c.abilities||[];return as.length?as.reduce((t,a)=>t+avgAbility(a),0)/as.length:0}
+function initFilters(){[...new Set(cards.map(c=>c.element))].sort().forEach(e=>$("#element").add(new Option(elNames[e]||e,e)));[...new Set(cards.map(c=>c.rarity))].sort().forEach(r=>$("#rarity").add(new Option(rarFr[r]||r,r)));$("#count").textContent=`(${cards.length} cartes)`;renderCards();renderDeck();$("#source").textContent=`Données intégrées : version de jeu ${DB.gameVersion||"?"} · vérifiées le ${DB.fetchedAt?new Date(DB.fetchedAt).toLocaleString("fr-FR"):"?"} · extraction client ${DB.dataExtracted||"?"} · ${DB.tox?.length||0} familles de Tox · ${DB.talents?.length||0} talents.`}
+function renderCards(){let q=$("#search").value.toLowerCase(),e=$("#element").value,r=$("#rarity").value;let list=cards.filter(c=>(!e||c.element===e)&&(!r||c.rarity===r)&&(!q||[nm(c),c.name,c.slug,elNames[c.element],rarFr[c.rarity],...(c.abilities||[]).flatMap((a,i)=>[a.name,ab(c,i).name,...(ab(c,i).lines||[])])].join(" ").toLowerCase().includes(q)));$("#cards").innerHTML=list.map(c=>{let chosen=deck.includes(c.slug);return `<article class="card"><h3>${esc(nm(c))}</h3><div class="meta">${esc(rarFr[c.rarity]||c.rarity)} · ${elNames[c.element]||esc(c.element)} · ${esc(c.slug)}</div><div class="stats"><span>❤️ <b>${fmt(c.hp)}</b></span><span>Spamton <b>${fmt(c.spamton)}</b></span><span>⚔ ~<b>${avgCard(c).toFixed(1)}</b></span></div><div class="small">${(c.abilities||[]).map((a,i)=>esc(ab(c,i).name)).join(" · ")||"Aucune capacité renseignée"}</div><button class="${chosen?'added':''}" ${chosen||deck.length>=4?'disabled':''} data-add="${esc(c.slug)}">${chosen?'Déjà dans le deck':deck.length>=4?'Deck complet':'+ Ajouter au deck'}</button></article>`}).join("")||'<p class="small">Aucun résultat.</p>';document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{if(deck.length<4&&!deck.includes(b.dataset.add)){deck.push(b.dataset.add);renderCards();renderDeck()}})}
+function renderDeck(){let chosen=deck.map(s=>cards.find(c=>c.slug===s)).filter(Boolean);$("#deckcount").textContent=`(${chosen.length}/4)`;$("#slots").innerHTML=Array.from({length:4},(_,i)=>{let c=chosen[i];return `<div class="slot"><div><strong>${c?esc(nm(c)):`Emplacement ${i+1}`}</strong><div class="small">${c?`${elNames[c.element]||c.element} · ${fmt(c.hp)} PV`:"Choisis une carte dans la liste"}</div></div>${c?`<button data-remove="${i}">Retirer</button>`:""}</div>`}).join("");document.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{deck.splice(+b.dataset.remove,1);renderCards();renderDeck()});
+let hp=chosen.reduce((t,c)=>t+(c.hp||0),0),dmg=chosen.reduce((t,c)=>t+avgCard(c),0),talents=chosen.reduce((t,c)=>t+(c.talents||[]).length,0);$("#metrics").innerHTML=`<div class="metric"><b>${fmt(hp)}</b><span>PV cumulés de base</span></div><div class="metric"><b>${dmg.toFixed(1)}</b><span>Dégâts moyens/carte* cumulés</span></div><div class="metric"><b>${chosen.length===4?new Set(chosen.map(c=>c.element)).size:0}</b><span>Éléments représentés</span></div><div class="metric"><b>${talents}</b><span>Talents listés</span></div>`;
+$("#detail").innerHTML=chosen.length?chosen.map(c=>`<h3>${esc(nm(c))} — capacités</h3>${(c.abilities||[]).map((a,i)=>`<p><b>${esc(ab(c,i).name)}</b> · recharge ${a.cooldown??"?"} · précision ${Math.round((a.accuracy??1)*100)}%</p><p class="small">${(ab(c,i).lines||[]).map(esc).join(" / ")}</p>`).join("")}<h3>Talents</h3>${(c.talents||[]).map(t=>`<p>${esc(tl(c,t).name)}${t.best?" ★":""}${t.modeled?"":" <span class=small>(non simulé)</span>"} — ${esc(tl(c,t).text||"")}</p>`).join("")||'<p class="small">Aucun talent listé.</p>'}`).join(""):'<p class="small">Ajoute jusqu’à 4 cartes pour afficher les détails du deck.</p>'}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+$("#search").addEventListener("input",renderCards);$("#element").onchange=renderCards;$("#rarity").onchange=renderCards;$("#clear").onclick=()=>{deck=[];renderCards();renderDeck()};$("#export").onclick=()=>{if(!deck.length)return alert("Ajoute au moins une carte.");let obj={gameVersion:DB.gameVersion,deck:deck.map(s=>{let c=cards.find(x=>x.slug===s);return {slug:s,name:nm(c),level:3}})};let a=document.createElement("a"),u=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}));a.href=u;a.download="spam-deck.json";a.click();URL.revokeObjectURL(u)};
+initFilters();
+</script></body></html>

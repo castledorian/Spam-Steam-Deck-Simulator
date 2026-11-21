@@ -4,6 +4,7 @@
  * Spamtons income, Tox shop every even turn (3 offers, luck-driven rarity),
  * overtime from round 20, +50 Spamtons when one of your cards dies. */
 import type { AbilitySim, Card, Snapshot, ToxFamily } from "../types";
+import { toxKey } from "../parse";
 
 export interface DeckSpec {
   s: string[]; // 4 slugs, board order
@@ -65,8 +66,10 @@ export function initEngine(s: Snapshot) {
 }
 
 function toxStart(name: string, rarity?: string): { id: string; v: number } | null {
-  const id = [...TOX.values()].find((t) => t.name.toLowerCase() === name.toLowerCase())?.id;
+  const k = toxKey(name);
+  const id = [...TOX.values()].find((t) => t.name.toLowerCase() === name.toLowerCase() || (k.key && (toxKey(t.name).key === k.key || toxKey(t.id).key === k.key)))?.id;
   if (!id) return null;
+  rarity = rarity ?? k.rarity;
   const fam = TOX.get(id)!;
   const step = (rarity && fam.ladder.find((x) => x.rarity === rarity)) || fam.ladder[0];
   return { id, v: step ? step.value : 0 };
@@ -263,16 +266,25 @@ class Match {
       for (const c of o.cards) if (c.alive && c.tx.mimicry) o.pts[el] += 1;
     }
   }
-  expDmg(a: St, ab: CAb, t: St, p: Pl): number {
+  expDmg(a: St, ab: CAb, abIdx: number, t: St, p: Pl): number {
     let d = 0;
     const bz = this.berserk(p);
+    // This is a target-selection heuristic, not the exact combat resolver.
+    // Keep its base/growth terms aligned with strike() and include expected crit.
     for (const h of ab.hits) {
-      const el = h.el < 0 ? a.c.el : h.el;
-      const pts = p.pts[el] * (a.tx.mult ? 2 : 1);
-      const res = a.tx.brutal ? 0 : Math.max(-50, Math.min(50, (el === 6 ? 0 : t.c.res[el]) + t.resB));
-      d += ((h.min + h.max) / 2 + a.base + ab.growth) * (1 + 0.1 * pts) * bz * (1 - res / 100) * ab.times;
+      const elements = h.el === RAND ? [0, 1, 2, 3, 4, 5] : [h.el === OWN ? a.c.el : h.el];
+      const roll = (h.min + h.max) / 2 + a.base + a.grow[abIdx];
+      const expectedCrit = 1 + ab.cc * (ab.cp - 1);
+      const shield = t.tx.shield && !t.shieldUsed && !a.tx.brutal ? 1 - t.tx.shield / 100 : 1;
+      let elementDamage = 0;
+      for (const el of elements) {
+        const pts = p.pts[el] * (a.tx.mult ? 2 : 1);
+        const res = a.tx.brutal || el === 6 ? 0 : Math.max(-50, Math.min(50, t.c.res[el] + t.resB));
+        elementDamage += roll * (1 + 0.1 * pts) * expectedCrit * bz * shield * (1 - res / 100);
+      }
+      d += (elementDamage / elements.length) * ab.times;
     }
-    return d;
+    return Math.max(0, d);
   }
   /* returns damage dealt */
   strike(a: St, ab: CAb, abIdx: number, t: St, h: CHit, p: Pl, crit: boolean, pctMul = 1): number {
@@ -375,7 +387,7 @@ class Match {
     let best = alive[0];
     let bs = -1e9;
     for (const e of alive) {
-      const d = this.expDmg(a, ab, e, p);
+      const d = this.expDmg(a, ab, this.curAb, e, p);
       const kill = d >= e.hp;
       let sc = Math.min(d, e.hp) + (kill ? 150 + e.c.spamton * 4 + e.c.dmgTotal * 2 : 0);
       sc += e.c.dmgTotal * 0.6 - e.hp * 0.02;
@@ -410,7 +422,12 @@ class Match {
     this.curAb = abIdx;
     this.curP = p;
     if (ab.costEl) for (let e = 0; e < 7; e++) p.pts[e] -= ab.costEl[e];
-    if (ab.costHp) a.hp -= ab.costHp;
+    // Eligibility is checked before cast (hp must remain > costHp). Route the
+    // payment through hurt() so all death/defensive rules share one code path.
+    if (ab.costHp) {
+      this.hurt(a, ab.costHp, null, p);
+      if (!a.alive) return;
+    }
     if (this.rng() <= ab.acc) {
       if (ab.hits.length) {
         if (ab.target === "all") {
@@ -704,6 +721,7 @@ export function playMatch(a: CCard[], b: CCard[], rng: Rng, aFirst: boolean, sta
   const first = aFirst ? pa : pb;
   const second = aFirst ? pb : pa;
   for (let t = 1; t <= MAXT; t++) {
+    if (stats) stats.turns = t;
     m.turn(first, t);
     if (!second.cards.some((c) => c.alive)) break;
     m.turn(second, t);
@@ -737,7 +755,9 @@ export interface EvalResult {
 
 /** Plays `games` matches of `a` against random opponents drawn from `opps`. */
 export function evalDeck(a: DeckSpec, opps: DeckSpec[], games: number, seed: number, wantStats = false): EvalResult {
-  const rng = mulberry(seed);
+  if (!Number.isInteger(games) || games < 1) throw new Error("games must be a positive integer");
+  if (opps.length < 1) throw new Error("at least one opponent deck is required");
+  const opponentRng = mulberry((seed ^ 0x6a09e667) >>> 0);
   const ca = compileDeck(a);
   const co = opps.map(compileDeck);
   let w = 0;
@@ -745,8 +765,12 @@ export function evalDeck(a: DeckSpec, opps: DeckSpec[], games: number, seed: num
   const stats: MatchStats | null = wantStats ? { tox: {}, turns: 0 } : null;
   let turns = 0;
   for (let g = 0; g < games; g++) {
-    const o = co[Math.floor(rng() * co.length)];
-    const r = playMatch(ca, o, rng, g % 2 === 0, stats);
+    // Independent streams ensure candidate decks see the same opponent sequence
+    // and same per-game random stream when evaluated with the same seed.
+    const o = co[Math.floor(opponentRng() * co.length)];
+    const gameSeed = (seed + Math.imul(g + 1, 0x9e3779b9)) >>> 0;
+    const gameRng = mulberry(gameSeed);
+    const r = playMatch(ca, o, gameRng, g % 2 === 0, stats);
     if (r === 1) w++;
     else if (r === 0.5) d++;
     if (stats) turns += stats.turns;

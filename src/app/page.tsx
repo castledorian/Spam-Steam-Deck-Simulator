@@ -2,9 +2,12 @@
 import Link from "next/link";
 import { useData } from "@/components/DataProvider";
 import { CardFace, Loading, Section } from "@/components/ui";
+import { UpdateStatus } from "@/components/UpdateStatus";
+import { cardName, patchLabelFr } from "@/lib/fr";
 
 export default function Home() {
-  const { snap, loading, syncing, syncMsg, sync } = useData();
+  const { snap, loading, bySlug } = useData();
+  const enToSlug = new Map(snap?.cards.map((c) => [c.name.toLowerCase(), c.slug]) ?? []);
   if (loading || !snap) return <Loading />;
   const latest = snap.patches[0];
   const showcase = ["aeltheria-primordial-mother", "ephial", "ignea", "zayd", "sovereign-of-flames", "leviathan-of-the-skies"]
@@ -50,17 +53,9 @@ export default function Home() {
         ))}
       </div>
 
-      <Section title="Mise à jour constante" sub="Les patchs sont lus depuis l'API Steam, les stats depuis les données extraites du client du jeu, puis les ajustements d'équilibrage plus récents sont appliqués automatiquement.">
-        <div className="card-panel flex flex-wrap items-center justify-between gap-4 p-4">
-          <div className="text-sm text-zinc-300">
-            <div>Dernière synchronisation : <b className="text-white">{new Date(snap.fetchedAt).toLocaleString("fr-FR")}</b></div>
-            <div className="text-zinc-400">Source : {snap.dataSource} · données client extraites le {snap.dataExtracted || "?"}</div>
-            <div className="text-zinc-500">Rafraîchissement automatique en arrière-plan toutes les 3 h (dès qu&apos;un visiteur se connecte).</div>
-            {syncMsg && <div className="mt-1 text-amber-300">{syncMsg}</div>}
-          </div>
-          <button className="btn btn-primary" onClick={() => void sync()} disabled={syncing}>
-            {syncing ? "Synchronisation…" : "Synchroniser maintenant"}
-          </button>
+      <Section title="Mise à jour constante" sub="Les patchs sont lus depuis l'API Steam, les stats et textes français officiels depuis les données extraites du client du jeu, puis les ajustements d'équilibrage plus récents sont appliqués automatiquement.">
+        <div className="card-panel p-4">
+          <UpdateStatus snap={snap} detailed />
         </div>
       </Section>
 
@@ -71,7 +66,7 @@ export default function Home() {
             <div className="flex flex-wrap gap-2">
               {latest.balance.slice(0, 14).map((b) => (
                 <span key={b.name} className="rounded-full bg-white/8 px-2.5 py-1 text-xs text-zinc-200">
-                  {b.name} <span className={b.label.includes("Buff") ? "text-emerald-400" : b.label.includes("Nerf") ? "text-red-400" : "text-zinc-400"}>{b.label}</span>
+                  {cardName(bySlug.get(enToSlug.get(b.name.toLowerCase()) ?? ""), b.name)} <span className={b.label.includes("Buff") ? "text-emerald-400" : b.label.includes("Nerf") ? "text-red-400" : "text-zinc-400"}>{patchLabelFr(b.label)}</span>
                 </span>
               ))}
             </div>

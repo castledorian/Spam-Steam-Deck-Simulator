@@ -49,6 +49,8 @@ export interface AbilitySim {
   growth?: number;
   echo?: number;
   oppSpamtonsSet?: number;
+  /** Parsing/coverage warnings. Any entry means this effect is not fully simulated. */
+  unsupported?: string[];
 }
 
 export interface Ability {
@@ -98,6 +100,24 @@ export interface Card {
   artist?: string;
   patched: string[];
   pending: string[];
+  /** Absolute URL of the official illustration, when found on the source page. */
+  image?: string;
+  /** Official French display texts (metabot.gg/fr). English fields stay the engine's keys. */
+  fr?: CardFr;
+}
+
+/** French display layer. Indexes match `abilities` / `startTox`; talents match by slot. */
+export interface CardFr {
+  name: string;
+  abilities: ({ name: string; lines: string[] } | null)[];
+  talents: { slot: number; name: string; text: string }[];
+  startTox: ({ name: string; text: string } | null)[];
+}
+
+export interface FrText {
+  name: string;
+  text: string;
+  category?: string;
 }
 
 export interface ToxStep {
@@ -113,12 +133,14 @@ export interface ToxFamily {
   ladder: ToxStep[];
   text: string;
   startsOn: string[];
+  fr?: FrText;
 }
 export interface TalentInfo {
   id: string;
   name: string;
   text: string;
   cards: string[];
+  fr?: FrText;
 }
 
 export interface PatchChange {
@@ -153,4 +175,6 @@ export interface Snapshot {
   tox: ToxFamily[];
   talents: TalentInfo[];
   patches: Patch[];
+  /** How much of the French layer could be fetched during the last sync. */
+  frCoverage?: { cards: number; cardsTotal: number; tox: number; talents: number; warnings: string[] };
 }

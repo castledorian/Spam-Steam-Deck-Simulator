@@ -12,16 +12,27 @@ export interface Job {
 export type InMsg =
   | { type: "init"; snapshot: Snapshot }
   | { type: "eval"; id: number; jobs: Job[]; opps: DeckSpec[] };
-export type OutMsg = { type: "ready" } | { type: "done"; id: number; results: EvalResult[] };
+export type OutMsg =
+  | { type: "ready" }
+  | { type: "done"; id: number; results: EvalResult[] }
+  | { type: "error"; id: number; message: string };
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 ctx.onmessage = (e: MessageEvent<InMsg>) => {
-  const m = e.data;
-  if (m.type === "init") {
-    initEngine(m.snapshot);
-    ctx.postMessage({ type: "ready" } satisfies OutMsg);
-  } else if (m.type === "eval") {
-    const results = m.jobs.map((j) => evalDeck(j.a, j.o || m.opps, j.games, j.seed, !!j.stats));
-    ctx.postMessage({ type: "done", id: m.id, results } satisfies OutMsg);
+  const message = e.data;
+  if (message.type === "init") {
+    try {
+      initEngine(message.snapshot);
+      ctx.postMessage({ type: "ready" } satisfies OutMsg);
+    } catch (error) {
+      ctx.postMessage({ type: "error", id: -1, message: error instanceof Error ? error.message : String(error) } satisfies OutMsg);
+    }
+    return;
+  }
+  try {
+    const results = message.jobs.map((job) => evalDeck(job.a, job.o || message.opps, job.games, job.seed, !!job.stats));
+    ctx.postMessage({ type: "done", id: message.id, results } satisfies OutMsg);
+  } catch (error) {
+    ctx.postMessage({ type: "error", id: message.id, message: error instanceof Error ? error.message : String(error) } satisfies OutMsg);
   }
 };

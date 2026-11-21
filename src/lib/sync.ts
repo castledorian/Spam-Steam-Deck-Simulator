@@ -1,7 +1,9 @@
 import { applyPatches, parseCardPage, parsePatch, parseTalentsPage, parseToxPage } from "./parse";
+import { attachFrench, parseCardPageFr, parseToxPageFr, refreshFrenchAfterPatches, type CardPageFr } from "./parse-fr";
 import type { Card, Snapshot } from "./types";
 
 const BASE = "https://metabot.gg/en/spam";
+const BASE_FR = "https://metabot.gg/fr/spam";
 const STEAM_APP = 2902720;
 const UA = { "User-Agent": "Mozilla/5.0 (compatible; SpamLab/1.0; +fan-project)" };
 
@@ -52,19 +54,54 @@ export async function buildSnapshot(): Promise<Snapshot> {
   const ver = (list.match(/v(\d+\.\d+(?:\.\d+)?)/) || [, "?"])[1] as string;
   const ext = (list.match(/extracted ([A-Z][a-z]{2} \d{1,2}, \d{4})/) || [, ""])[1] as string;
 
-  const [toxHtml, talHtml, patches] = await Promise.all([get(`${BASE}/tox`), get(`${BASE}/talents`), fetchPatches().catch(() => [])]);
+  // Do not silently publish a snapshot with missing patch history when Steam is unavailable.
+  const [toxHtml, talHtml, patches] = await Promise.all([get(`${BASE}/tox`), get(`${BASE}/talents`), fetchPatches()]);
   const tox = parseToxPage(toxHtml);
   const talents = parseTalentsPage(talHtml);
-  const cardsRaw = await pool(slugs, 8, async (s) => {
+  if (tox.length === 0) throw new Error("Tox page returned no families");
+  if (talents.length === 0) throw new Error("Talents page returned no talents");
+  const cardsRaw = await pool(slugs, 8, async (slug) => {
     try {
-      return parseCardPage(await get(`${BASE}/cards/${s}`), s);
-    } catch {
-      return null;
+      return { slug, card: parseCardPage(await get(`${BASE}/cards/${slug}`), slug), error: null as string | null };
+    } catch (error) {
+      return { slug, card: null, error: error instanceof Error ? error.message : String(error) };
     }
   });
-  const cards = cardsRaw.filter((c): c is Card => !!c);
+  const failed = cardsRaw.filter((entry) => !entry.card);
+  if (failed.length) {
+    const examples = failed.slice(0, 8).map((entry) => `${entry.slug}: ${entry.error}`).join("; ");
+    throw new Error(`Synchronisation incomplète : ${failed.length}/${slugs.length} cartes non récupérées. ${examples}`);
+  }
+  const cards = cardsRaw.map((entry) => entry.card as Card);
+  const cardSlugs = new Set(cards.map((card) => card.slug));
+  if (cardSlugs.size !== cards.length || cards.length !== slugs.length) {
+    throw new Error(`Intégrité des cartes invalide : ${cards.length} reçues pour ${slugs.length} attendues`);
+  }
+  // Couche française : best effort, ne bloque jamais la mise à jour des données de jeu.
+  const frCards = new Map<string, CardPageFr>();
+  let frTox = new Map<string, { name: string; text: string; category?: string }>();
+  let frTalents: ReturnType<typeof parseTalentsPage> = [];
+  const frWarnings: string[] = [];
+  try {
+    const [ft, fl] = await Promise.all([get(`${BASE_FR}/tox`), get(`${BASE_FR}/talents`)]);
+    frTox = parseToxPageFr(ft);
+    frTalents = parseTalentsPage(fl);
+  } catch (e) {
+    frWarnings.push(`Pages Tox/Talents FR indisponibles : ${e instanceof Error ? e.message : String(e)}`);
+  }
+  await pool(slugs, 8, async (slug) => {
+    try {
+      const f = parseCardPageFr(await get(`${BASE_FR}/cards/${slug}`));
+      if (f) frCards.set(slug, f);
+    } catch {
+      /* signalé par attachFrench */
+    }
+  });
+  const fr = attachFrench(cards, frCards, tox, frTox, talents, frTalents);
+
   const toxIds = new Map(tox.map((t) => [t.name.toLowerCase(), t.id]));
   applyPatches(cards, toxIds, talents, patches);
+  refreshFrenchAfterPatches(cards, talents, tox);
   return {
     gameVersion: patches[0]?.version || ver,
     dataSource: `metabot.gg (client v${ver}) + Steam news API`,
@@ -74,5 +111,6 @@ export async function buildSnapshot(): Promise<Snapshot> {
     tox,
     talents,
     patches,
+    frCoverage: { cards: fr.cards, cardsTotal: cards.length, tox: fr.tox, talents: fr.talents, warnings: [...frWarnings, ...fr.warnings].slice(0, 50) },
   };
 }

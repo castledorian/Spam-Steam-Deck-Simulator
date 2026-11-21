@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useData, useOwned } from "@/components/DataProvider";
-import { Bar, CardFace, EL_COLOR, EL_FR, ElIcon, Loading, Pill, RAR_COLOR, RAR_FR, Section, SpamtonIcon } from "@/components/ui";
+import { Bar, CardFace, EL_COLOR, EL_FR, ElIcon, Loading, Pill, RAR_COLOR, RAR_FR, Section, SpamtonIcon, ToxIcon } from "@/components/ui";
 import { EL6 } from "@/lib/types";
+import { abilityFr, cardName, rarityFr, startToxFr, talentFr } from "@/lib/fr";
 
 export default function CardPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -38,7 +39,8 @@ export default function CardPage() {
           </div>
         </div>
         <div>
-          <h1 className="text-3xl font-extrabold text-white">{c.name}</h1>
+          <h1 className="text-3xl font-extrabold text-white">{cardName(c)}</h1>
+          {c.fr && c.fr.name !== c.name && <div className="text-sm text-zinc-500">Nom anglais : {c.name}</div>}
           <div className="mt-2 flex flex-wrap gap-2">
             <Pill color={RAR_COLOR[c.rarity]}>{RAR_FR[c.rarity]}</Pill>
             <Pill color={EL_COLOR[c.element]}><ElIcon el={c.element} size={14} /> {EL_FR[c.element]}</Pill>
@@ -49,36 +51,41 @@ export default function CardPage() {
           <Section title="Capacités" sub="Valeurs de base avant bonus d'éléments.">
             <div className="space-y-3">
               {c.abilities.length === 0 && <div className="card-panel p-4 text-sm text-zinc-400">Cette carte n&apos;a aucune capacité active : elle repose sur ses passifs.</div>}
-              {c.abilities.map((a) => (
-                <div key={a.name} className="card-panel p-4" style={{ borderColor: EL_COLOR[a.elements[0] ?? c.element] + "55" }}>
+              {c.abilities.map((a, ai) => {
+                const af = abilityFr(c, ai);
+                return (
+                <div key={a.name + ai} className="card-panel p-4" style={{ borderColor: EL_COLOR[a.elements[0] ?? c.element] + "55" }}>
                   <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-white">{a.name}</span>
+                    <span className="font-bold text-white">{af.name}</span>
+                    {!af.fr && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300" title="Texte français pas encore synchronisé">EN</span>}
                     {a.elements.map((e) => (
                       <ElIcon key={e} el={e} size={16} />
                     ))}
                   </div>
-                  <div className="space-y-0.5 text-sm text-zinc-300">{a.lines.map((l, i) => <div key={i}>{l}</div>)}</div>
+                  <div className="space-y-0.5 text-sm text-zinc-300">{af.lines.map((l, i) => <div key={i}>{l}</div>)}</div>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
                     <span>Recharge <b className="text-white">{a.cooldown}</b></span>
                     <span>Précision <b className="text-white">{Math.round(a.accuracy * 100)} %</b></span>
                     <span>Critique <b className="text-white">{Math.round(a.critChance * 100)} % ×{a.critPower}</b></span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Section>
 
           {c.startTox.length > 0 && (
             <Section title="Passifs de départ (Tox)">
               <div className="grid gap-2 sm:grid-cols-2">
-                {c.startTox.map((t) => {
+                {c.startTox.map((t, ti) => {
                   const fam = toxById.get(t.id);
+                  const tf = startToxFr(c, ti, fam);
                   return (
                     <div key={t.id + t.name} className="card-panel flex gap-3 p-3">
-                      {fam?.icon && /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/tox/${fam.icon}`} alt="" width={36} height={36} className="h-9 w-9" />}
+                      <ToxIcon icon={fam?.icon} />
                       <div>
-                        <div className="font-semibold text-white">{t.name} {t.rarity && <span className="text-xs text-zinc-400">({t.rarity})</span>}</div>
-                        <div className="text-sm text-zinc-300">{t.text || fam?.text}</div>
+                        <div className="font-semibold text-white">{tf.name} {t.rarity && <span className="text-xs text-zinc-400">({rarityFr(t.rarity)})</span>}</div>
+                        <div className="text-sm text-zinc-300">{tf.text}</div>
                       </div>
                     </div>
                   );
@@ -93,8 +100,8 @@ export default function CardPage() {
                 <div key={t.slot} className="card-panel flex items-start gap-3 p-3">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold">{t.slot}</span>
                   <div>
-                    <div className="font-semibold text-white">{t.name} {t.modeled && <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">modélisé</span>}</div>
-                    <div className="text-sm text-zinc-300">{t.text}</div>
+                    <div className="font-semibold text-white">{talentFr(c, t.slot).name} {t.best && <span className="text-amber-300" title="Talent conseillé">★</span>} {t.modeled && <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">modélisé</span>}{!t.modeled && <span className="ml-1 rounded bg-zinc-500/20 px-1.5 py-0.5 text-[10px] text-zinc-400">non simulé</span>}</div>
+                    <div className="text-sm text-zinc-300">{talentFr(c, t.slot).text}</div>
                   </div>
                 </div>
               ))}
@@ -115,7 +122,7 @@ export default function CardPage() {
           </Section>
 
           {(c.patched.length > 0 || c.pending.length > 0) && (
-            <Section title="Ajustements de patch" sub="Appliqués automatiquement par-dessus les données du client quand la valeur d'origine correspond.">
+            <Section title="Ajustements de patch" sub="Appliqués automatiquement par-dessus les données du client quand la valeur d'origine correspond. Les textes de capacités affichent encore les valeurs d'avant patch ; le simulateur, lui, utilise les nouvelles.">
               <div className="card-panel p-4 text-sm">
                 {c.patched.map((p) => (
                   <div key={p} className="text-emerald-300">✓ {p}</div>

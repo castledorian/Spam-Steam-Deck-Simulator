@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useData } from "./DataProvider";
-import { CardFace, ElIcon, pct } from "./ui";
+import { CardFace, ElIcon, ToxIcon, pct } from "./ui";
+import { toxFr } from "@/lib/fr";
 import type { DeckResult } from "@/lib/sim/search";
 
 export function DeckCards({ slugs, lvls, size = "w-full" }: { slugs: string[]; lvls?: number[]; size?: string }) {
@@ -30,6 +31,8 @@ export function RateBadge({ r, big = false }: { r: DeckResult; big?: boolean }) 
         IC 95 % : {pct(r.lo)} – {pct(r.hi)}
       </div>
       <div className="text-xs text-zinc-500">{r.n.toLocaleString("fr-FR")} parties · ±{(((r.hi - r.lo) / 2) * 100).toFixed(1).replace(".", ",")} pt</div>
+      {r.experimental && <div className="mt-1 text-xs font-semibold text-amber-300" title={(r.validationWarnings ?? []).join("\n")}>Simulation expérimentale · mécaniques incomplètes</div>}
+      {!r.experimental && <div className="mt-1 text-xs text-zinc-500">Aucune limitation connue détectée · fidélité non certifiée</div>}
     </div>
   );
 }
@@ -47,8 +50,8 @@ export function ToxUse({ tox }: { tox?: Record<string, number> }) {
         const f = snap.tox.find((t) => t.id === id);
         return (
           <span key={id} className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-xs text-zinc-200" title="Part des achats en boutique dans les parties simulées">
-            {f?.icon && /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/tox/${f.icon}`} alt="" width={14} height={14} className="h-3.5 w-3.5" />}
-            {f?.name ?? id} · {Math.round((n / total) * 100)} %
+            <ToxIcon icon={f?.icon} size={14} />
+            {f ? toxFr(f).name : id} · {Math.round((n / total) * 100)} %
           </span>
         );
       })}

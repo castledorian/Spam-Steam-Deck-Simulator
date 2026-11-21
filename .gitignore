@@ -1,0 +1,4 @@
+.sync-message
+node_modules
+.next
+.env*.local
