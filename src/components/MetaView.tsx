@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Precision, PRECISION_INFO } from "@/sim/pool";
+import { Precision, PRECISION_INFO, PRECISION_LABEL, PRECISIONS } from "@/sim/pool";
 import { CardChip } from "./CardView";
 import { CardModal } from "./CardsBrowser";
-import { DeckCards, ToxPlan, WinBar, pct } from "./DeckRow";
+import { DeckCards, DeckTalents, ToxPlan, WinBar, pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
 import type { RawCard } from "@/sim/compile";
 
@@ -43,14 +43,14 @@ export function MetaView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-4xl text-white">Méta & Tier list</h1>
+          <h1 className="font-display text-3xl text-white sm:text-4xl">Méta & Tier list</h1>
           <p className="mt-1 max-w-3xl text-sm text-white/65">
             Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Le résultat est partagé et sert d&apos;adversaires de référence dans le simulateur.
           </p>
         </div>
         <div className="panel flex flex-wrap items-center gap-3 p-3 text-sm">
           <select className="input !w-auto" value={precision} onChange={(e) => setPrecision(e.target.value as Precision)} disabled={metaBusy}>
-            {(["rapide", "precis", "maximal"] as Precision[]).map((x) => <option key={x} value={x}>{x === "precis" ? "précis" : x} — {PRECISION_INFO[x]}</option>)}
+            {PRECISIONS.map((x) => <option key={x} value={x}>{PRECISION_LABEL[x]} — {PRECISION_INFO[x]}</option>)}
           </select>
           <button className="btn btn-primary" onClick={() => void run()} disabled={metaBusy}>{metaBusy ? "Calcul…" : meta ? "↻ Recalculer la méta" : "▶ Calculer la méta"}</button>
         </div>
@@ -59,11 +59,11 @@ export function MetaView() {
         <div className="panel space-y-2 p-4"><div className="flex justify-between text-sm"><span>{phase}</span><span>{Math.round(p * 100)} %</span></div><div className="progress"><div style={{ width: `${p * 100}%` }} /></div></div>
       )}
       {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
-      {!meta && !metaBusy && <p className="panel p-8 text-center text-white/60">Aucune méta calculée pour le patch {ds.version}. Lancez le calcul : il est ensuite mémorisé et partagé.</p>}
+      {!meta && !metaBusy && <p className="panel p-8 text-center text-white/60">Aucune méta calculée pour le patch {ds.version}. Lancez le calcul : le résultat est ensuite mémorisé dans ce navigateur pour ce patch.</p>}
 
       {meta && (
         <>
-          <div className="panel grid gap-3 p-4 text-center sm:grid-cols-4">
+          <div className="panel grid grid-cols-2 gap-3 p-4 text-center sm:grid-cols-4">
             <div><div className="font-display text-2xl">{meta.combos.toLocaleString("fr-FR")}</div><div className="text-xs text-white/50">decks de 4 cartes évalués</div></div>
             <div><div className="font-display text-2xl">{meta.candidates}</div><div className="text-xs text-white/50">candidats retenus</div></div>
             <div><div className="font-display text-2xl">{meta.sims.toLocaleString("fr-FR")}</div><div className="text-xs text-white/50">matchs simulés</div></div>
@@ -74,11 +74,14 @@ export function MetaView() {
             <h2 className="font-display text-2xl text-white">Meilleurs decks (decks contre decks)</h2>
             <p className="text-xs text-white/50">Taux de victoire moyen face aux autres decks du championnat (50 % = équilibre), intervalle de confiance à 95 %.</p>
             {meta.decks.slice(0, 12).map((d, i) => (
-              <article key={i} className="panel flex flex-wrap items-center gap-5 p-4">
-                <div className="font-display text-3xl text-[#ffc756]">#{i + 1}</div>
-                <DeckCards cards={d.cards} size={68} />
-                <div className="min-w-[220px] flex-1 space-y-1"><div className="text-xs text-white/45">Plan de Tox</div><ToxPlan tox={d.tox} max={6} /></div>
-                <WinBar d={d} />
+              <article key={i} className="panel p-4">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                  <div className="font-display text-3xl text-[#ffc756]">#{i + 1}</div>
+                  <DeckCards cards={d.cards} size={68} />
+                  <div className="min-w-0 flex-1 basis-56 space-y-1"><div className="text-xs text-white/45">Plan de Tox</div><ToxPlan tox={d.tox} max={6} /></div>
+                  <div className="w-full sm:w-auto"><WinBar d={d} /></div>
+                </div>
+                <DeckTalents cards={d.cards} tal={d.tal} />
               </article>
             ))}
           </section>
@@ -88,7 +91,7 @@ export function MetaView() {
             <p className="text-xs text-white/50">Classement par présence et taux de victoire dans les meilleurs decks simulés.</p>
             {tiers.map((t) => (
               <div key={t.t} className="panel flex gap-3 p-3">
-                <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl font-display text-4xl text-black" style={{ background: t.color }}>{t.t}</div>
+                <div className="flex h-12 w-10 shrink-0 items-center justify-center rounded-xl font-display text-3xl text-black sm:h-16 sm:w-14 sm:text-4xl" style={{ background: t.color }}>{t.t}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {t.cards.length === 0 && <span className="self-center text-sm text-white/35">—</span>}
                   {t.cards.map(({ c }) => {

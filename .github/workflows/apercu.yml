@@ -1,0 +1,50 @@
+# Vérification visuelle et fonctionnelle d'une branche de travail (hors main).
+# Compile le site, le teste dans Chromium (téléphone + PC, simulation réelle) et enregistre
+# captures et rapport sur la branche « apercu ».
+name: Aperçu de la branche
+
+on:
+  push:
+    branches-ignore: [main, apercu]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apercu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Tests
+        run: |
+          npm test
+          npm run test:engine
+      - name: Construire
+        run: npm run build
+      - name: Navigateur
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.49.1
+          npx playwright install --with-deps chromium
+      - name: Captures et simulation
+        run: node scripts/apercu.mjs /tmp/apercu
+      - name: Publier sur la branche apercu
+        if: always()
+        run: |
+          cd /tmp/apercu
+          git init -q -b apercu
+          git config user.name "spamlab-bot"
+          git config user.email "spamlab-bot@users.noreply.github.com"
+          echo "Branche source : ${GITHUB_REF_NAME} @ ${GITHUB_SHA}" > SOURCE.txt
+          git add -A
+          git commit -qm "Aperçu ${GITHUB_REF_NAME} ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" apercu

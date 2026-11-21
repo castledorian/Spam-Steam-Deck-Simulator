@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { SpamProvider } from "@/components/SpamProvider";
 import { Nav, Footer } from "@/components/Shell";
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#07040f" };
 
 export const metadata: Metadata = {
   title: "SpamLab — Simulateur de decks & base de données SPAM",

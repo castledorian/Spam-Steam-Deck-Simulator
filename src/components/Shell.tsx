@@ -20,22 +20,23 @@ export function Nav() {
   const n = Object.keys(collection).length;
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07040f]/85 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 sm:px-6 sm:py-3 lg:flex-nowrap">
         <Link href="/" className="font-display text-2xl tracking-wide text-[#ffc756]">
           SPAM<span className="text-white">Lab</span>
         </Link>
-        <nav className="flex flex-1 flex-wrap items-center gap-1 text-sm">
+        {/* sur téléphone : une seule ligne de liens qui défile horizontalement, sous le logo */}
+        <nav className="no-scrollbar order-3 -mx-3 flex w-[calc(100%+1.5rem)] flex-nowrap items-center gap-1 overflow-x-auto px-3 pb-1 text-sm lg:order-none lg:mx-0 lg:w-auto lg:flex-1 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
           {LINKS.map((l) => {
             const on = l.href === "/" ? path === "/" : path.startsWith(l.href);
             return (
-              <Link key={l.href} href={l.href} className={`rounded-lg px-3 py-1.5 transition ${on ? "bg-white/12 text-white" : "text-white/65 hover:bg-white/8 hover:text-white"}`}>
+              <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined} className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 transition lg:py-1.5 ${on ? "bg-white/12 text-white" : "text-white/65 hover:bg-white/8 hover:text-white"}`}>
                 {l.label}
                 {l.href === "/collection" && n > 0 && <span className="ml-1.5 rounded-full bg-emerald-400/20 px-1.5 text-[11px] text-emerald-300">{n}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className="flex items-center gap-2 text-xs text-white/60">
+        <div className="ml-auto flex items-center gap-2 text-xs text-white/60 lg:ml-0">
           <span title={info?.message ?? ""} className="flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${info?.ok ? "bg-emerald-400" : "bg-amber-400"}`} />
             Patch {ds?.version ?? "…"}

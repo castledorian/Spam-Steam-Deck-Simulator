@@ -6,6 +6,17 @@ import { useSpam, img } from "./SpamProvider";
 
 const RC = ["#9692A0", "#4FE6FF", "#C06AFF", "#FFC756"];
 
+/** Comment le simulateur interprète les Tox dont le texte officiel laisse une marge. */
+const SIM_NOTE: Partial<Record<string, string>> = {
+  immunity: "Simulé : bloque les effets des cartes adverses (poison, gel, Éternité, malus, vol de PV max…) mais pas les dégâts directs. Interprétation : des cartes commencent avec ce Tox et seraient sinon invulnérables.",
+  smoke: "Effet non publié par le jeu : non simulé (jamais acheté par l'IA).",
+  freeze: "Simulé : la carte gelée passe son prochain tour ; le prochain dégât, soin ou Tox brise la glace et inflige les dégâts indiqués.",
+  graveyard: "Simulé : se déclenche à la mort de n'importe quelle carte du terrain.",
+  avenger: "Simulé : se déclenche à la mort de n'importe quelle carte qu'il n'a pas tuée, même s'il est immunisé.",
+  brut: "Simulé : ignore résistances, boucliers et provocations, et détruit le Bouclier et la Provocation de la cible.",
+  metamorph: "Simulé : transformation aléatoire, l'IA ne la tente que sur une carte faible.",
+};
+
 export function ToxView() {
   const { ds, loading } = useSpam();
   const [q, setQ] = useState("");
@@ -30,7 +41,7 @@ export function ToxView() {
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="font-display text-4xl text-white">Boutique de Tox, passifs & talents</h1>
+        <h1 className="font-display text-3xl text-white sm:text-4xl">Boutique de Tox, passifs & talents</h1>
         <p className="mt-1 max-w-3xl text-sm text-white/65">
           Les Tox sont des passifs achetés avec des Spamtons : la boutique s&apos;ouvre aux tours pairs avec 3 offres, vous en achetez une, relancez (10 ⬢, +5 à chaque relance) ou passez (+10 ⬢). Chaque carte dispose de 3 emplacements partagés entre capacités et Tox. Chaque tour augmente la Chance, qui rend les offres plus rares (Épique dès la Chance 5, Légendaire dès 11).
         </p>
@@ -64,6 +75,7 @@ export function ToxView() {
                     <b className="text-white">{t.name}</b>
                   </div>
                   <p className="mt-1 text-white/65">{t.desc}</p>
+                  {SIM_NOTE[t.fam] && <p className="mt-1 text-[11px] leading-snug text-sky-200/70">{SIM_NOTE[t.fam]}</p>}
                   <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[11px]">
                     {RAR_NAMES.map((n, r) => (
                       <div key={n} className={`rounded-md bg-black/30 py-1 ${t.vals[r] === null ? "opacity-25" : ""}`}>
@@ -78,7 +90,7 @@ export function ToxView() {
             </div>
           </div>
         ))}
-        <p className="text-xs text-white/45">* prix estimés par échelle de rareté (non publiés dans le SpamDex). Les valeurs des passifs présents sur des cartes sont lues directement dans les données officielles ; les autres valeurs proviennent du client de jeu v1.28.1.</p>
+        <p className="text-xs text-white/45">Les valeurs des passifs présents sur des cartes sont lues directement dans les données officielles du patch ; les prix et les raretés absentes des cartes proviennent des données du client de jeu (v1.28.1) relevées par MetaBot, recoupées le 21/11/2026 : aucune valeur contredite par les données officielles.</p>
       </section>
 
       <section className="space-y-3">

@@ -71,6 +71,7 @@ jobs:
         env:
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
         run: |
+          npm run test:engine
           npm run build
           touch out/.nojekyll
 

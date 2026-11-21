@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { combos, DeckStat, optimize, Precision, PRECISION_INFO, wilson } from "@/sim/pool";
+import { combos, DeckStat, optimize, Precision, PRECISION_INFO, PRECISION_LABEL, PRECISIONS, wilson } from "@/sim/pool";
 import type { DeckSpec, Snapshot } from "@/sim/engine";
-import { DeckCards, ToxPlan, WinBar, pct } from "./DeckRow";
+import { DeckCards, DeckTalents, ToxPlan, WinBar, pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
 
 interface OptResult { decks: DeckStat[]; candidates: number; combos: number; matches: number; poolSize: number; precision: Precision; ms: number }
@@ -37,8 +37,8 @@ export function Simulator() {
     try {
       const pool = await getPool();
       setPhase("Préparation de la méta (une seule fois par patch)…"); setPctDone(0);
-      const m = await ensureMeta("rapide", (p, v) => { setPhase("Calcul de la méta · " + p); setPctDone(v * 0.35); });
-      const gauntlet: DeckSpec[] = m.decks.map((d) => ({ cards: d.cards, lv: d.cards.map(() => 3) }));
+      const m = await ensureMeta(precision === "rapide" ? "rapide" : "precis", (p, v) => { setPhase("Calcul de la méta · " + p); setPctDone(v * 0.35); });
+      const gauntlet: DeckSpec[] = m.decks.map((d) => ({ cards: d.cards, lv: d.cards.map(() => 3), tal: d.tal }));
       const r = await optimize(pool, poolNums, (n) => (source === "all" ? 3 : lvOf(n)), gauntlet, precision, (p, v) => { setPhase(p); setPctDone(0.35 + v * 0.65); });
       setRes({ ...r, poolSize: poolNums.length, precision, ms: performance.now() - t0 });
       setExpanded(0);
@@ -56,14 +56,14 @@ export function Simulator() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-4xl text-white">Simulateur de decks</h1>
+        <h1 className="font-display text-3xl text-white sm:text-4xl">Simulateur de decks</h1>
         <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Le moteur rejoue les duels selon les règles publiées : 4 cartes, recharges, points d&apos;éléments (+10 %/point), résistances, critiques, Spamtons, <b>boutique de Tox</b> toutes les 2 tours (Chance, rareté, reroll, skip), passifs de départ et talents de chaque carte.
+          Le moteur rejoue les duels selon les règles publiées : 4 cartes, recharges, points d&apos;éléments (+10 %/point), résistances, critiques, Spamtons, <b>boutique de Tox</b> toutes les 2 tours (Chance, rareté, relance, passer), passifs de départ et <b>un talent actif par carte</b>, choisi par simulation. Les meilleurs decks sont ensuite affinés en échangeant leurs cartes une à une.
         </p>
       </div>
       <div className="flex gap-2">
-        <button className="chip !px-4 !py-1.5 !text-sm" data-on={tab === "opt"} onClick={() => setTab("opt")}>Optimiser mon deck</button>
-        <button className="chip !px-4 !py-1.5 !text-sm" data-on={tab === "duel"} onClick={() => setTab("duel")}>Duel deck contre deck</button>
+        <button className="chip flex-1 !px-4 !py-2 !text-sm sm:flex-none" data-on={tab === "opt"} onClick={() => setTab("opt")}>Optimiser mon deck</button>
+        <button className="chip flex-1 !px-4 !py-2 !text-sm sm:flex-none" data-on={tab === "duel"} onClick={() => setTab("duel")}>Duel deck contre deck</button>
       </div>
 
       {tab === "opt" && (
@@ -80,15 +80,16 @@ export function Simulator() {
             </div>
             <div className="space-y-2">
               <h2 className="font-semibold text-white">2. Précision statistique</h2>
-              {(["rapide", "precis", "maximal"] as Precision[]).map((p) => (
-                <label key={p} className="flex cursor-pointer items-center gap-2 text-sm">
+              {PRECISIONS.map((p) => (
+                <label key={p} className="flex cursor-pointer flex-wrap items-center gap-x-2 text-sm">
                   <input type="radio" checked={precision === p} onChange={() => setPrecision(p)} />
-                  <span className="capitalize">{p === "precis" ? "précis" : p}</span><span className="text-white/45">{PRECISION_INFO[p]}</span>
+                  <span>{PRECISION_LABEL[p]}</span><span className="text-white/45">{PRECISION_INFO[p]}</span>
                 </label>
               ))}
+              {precision === "extreme" && <p className="text-xs text-amber-200/80">Recommandé pour décider du deck à jouer en classé. Laissez l&apos;onglet ouvert pendant le calcul.</p>}
             </div>
             <div className="flex flex-col justify-end gap-2">
-              <button className="btn btn-primary !px-6 !py-3 text-base" disabled={busy || poolNums.length < 4} onClick={() => void run()}>
+              <button className="btn btn-primary w-full !px-6 !py-3 text-base lg:w-auto" disabled={busy || poolNums.length < 4} onClick={() => void run()}>
                 {busy ? "Simulation en cours…" : "▶ Trouver les meilleurs decks"}
               </button>
             </div>
@@ -104,7 +105,7 @@ export function Simulator() {
 
           {res && (
             <section className="space-y-4">
-              <div className="panel grid gap-3 p-4 text-center sm:grid-cols-4">
+              <div className="panel grid grid-cols-2 gap-3 p-4 text-center sm:grid-cols-4">
                 <Kpi l="Decks évalués (statique)" v={res.combos.toLocaleString("fr-FR")} />
                 <Kpi l="Candidats simulés" v={res.candidates.toLocaleString("fr-FR")} />
                 <Kpi l="Matchs simulés" v={res.matches.toLocaleString("fr-FR")} />
@@ -115,19 +116,20 @@ export function Simulator() {
               </p>
               {res.decks.map((d, i) => (
                 <article key={d.cards.join("-")} className="panel p-4">
-                  <div className="flex flex-wrap items-center gap-5">
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                     <div className="font-display text-3xl text-[#ffc756]">#{i + 1}</div>
-                    <DeckCards cards={d.cards} size={72} />
-                    <div className="ml-auto"><WinBar d={d} /></div>
+                    <DeckCards cards={d.cards} size={68} />
+                    <div className="w-full sm:ml-auto sm:w-auto"><WinBar d={d} /></div>
                   </div>
+                  <DeckTalents cards={d.cards} tal={d.tal} />
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
                       <div className="text-xs text-white/45">Plan de Tox le plus joué (part des parties)</div>
                       <ToxPlan tox={d.tox} />
                     </div>
-                    <div className="flex gap-2">
-                      <button className="btn" onClick={() => setExpanded(expanded === i ? null : i)}>{expanded === i ? "Masquer" : "Matchups"}</button>
-                      <button className="btn" onClick={() => { setDuelA(d.cards); setTab("duel"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Tester en duel</button>
+                    <div className="flex w-full gap-2 sm:w-auto">
+                      <button className="btn flex-1 sm:flex-none" onClick={() => setExpanded(expanded === i ? null : i)}>{expanded === i ? "Masquer" : "Matchups"}</button>
+                      <button className="btn flex-1 sm:flex-none" onClick={() => { setDuelA(d.cards); setTab("duel"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Tester en duel</button>
                     </div>
                   </div>
                   {expanded === i && meta && (
@@ -233,7 +235,7 @@ function Duel({ a, b, setA, setB }: { a: number[]; b: number[]; setA: (d: number
       <div className="panel flex flex-wrap items-center gap-3 p-3">
         <label className="flex items-center gap-2 text-sm">Nombre de parties
           <select className="input !w-auto" value={n} onChange={(e) => setN(+e.target.value)}>
-            {[500, 2000, 10000, 40000].map((x) => <option key={x} value={x}>{x.toLocaleString("fr-FR")}</option>)}
+            {[500, 2000, 10000, 40000, 100000].map((x) => <option key={x} value={x}>{x.toLocaleString("fr-FR")}</option>)}
           </select>
         </label>
         <button className="btn btn-primary" disabled={!ok || busy} onClick={() => void run()}>▶ Simuler</button>

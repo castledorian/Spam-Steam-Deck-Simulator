@@ -20,6 +20,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
   const has = owned(card.number);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-3 sm:p-8" onClick={onClose}>
+      <button type="button" aria-label="Fermer" onClick={onClose} className="fixed right-3 top-3 z-[60] flex h-11 w-11 items-center justify-center rounded-full bg-black/70 text-2xl text-white ring-1 ring-white/20 sm:hidden">×</button>
       <div className="panel grid w-full max-w-5xl gap-6 bg-[#120a22] p-4 sm:grid-cols-[minmax(0,340px)_1fr] sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div>
           <CardView card={card} big eager />
@@ -177,7 +178,7 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl text-white">{mode === "browse" ? "Toutes les cartes" : "Ma collection"}</h1>
+          <h1 className="font-display text-3xl text-white sm:text-4xl">{mode === "browse" ? "Toutes les cartes" : "Ma collection"}</h1>
           <p className="text-sm text-white/60">
             {mode === "browse"
               ? `${cards.length} cartes officielles · patch ${ds.version}. Cliquez une carte pour tous les détails.`
@@ -205,7 +206,7 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
 
       <div className="panel space-y-3 p-3">
         <div className="flex flex-wrap gap-3">
-          <input className="input max-w-xs" placeholder="Rechercher (nom, capacité, passif, espèce…)" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input sm:max-w-xs" type="search" placeholder="Rechercher (nom, capacité, passif, espèce…)" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className="input !w-auto" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
             <option value="number">Tri : numéro</option><option value="name">Tri : nom</option><option value="hp">Tri : PV</option><option value="rarity">Tri : rareté</option><option value="spamton">Tri : Spamtons</option>
           </select>
@@ -228,7 +229,7 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
       </div>
 
       <p className="text-xs text-white/50">{list.length} carte(s) affichée(s)</p>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {list.map((c, i) => {
           const has = c.number in collection;
           return (
