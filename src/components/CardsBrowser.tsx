@@ -41,7 +41,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
                 {card.lore?.species && <span>· {card.lore.species}</span>}
               </p>
             </div>
-            <button className="btn !px-3" onClick={onClose} aria-label="Fermer">✕</button>
+            <button className="btn hidden !px-3 sm:inline-flex" onClick={onClose} aria-label="Fermer">✕</button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button className={`btn ${has ? "" : "btn-primary"}`} onClick={() => setOwned(card.number, !has)}>

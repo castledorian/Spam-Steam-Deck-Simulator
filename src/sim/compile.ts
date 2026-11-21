@@ -68,7 +68,7 @@ export const TOX_CATALOG: ToxFamily[] = [
   mk("graveyard", "Cimetière", "Économie & Chance", [3, 5, 8, 12], [20, 40, 60, 80], "+X à tous vos bonus élémentaires quand une carte meurt"),
   mk("spamland", "Spamland", "Économie & Chance", [4, 8, 24, 48], [5, 10, 16, 24], "Génère +X Spamtons par tour"),
   ...(["fire", "light", "earth", "nature", "shadow", "water"] as const).map((e, i) =>
-    mk("heart", "Cœur de " + ["feu", "lumière", "terre", "nature", "ombre", "eau"][i], "Bonus élémentaires", [1, 2, 5, 8], HEART_PRICES, "+X bonus de " + EL_FR[elIdx(e)] + " par tour", { el: elIdx(e) }),
+    mk("heart", ["Cœur de feu", "Cœur de lumière", "Cœur de terre", "Cœur de nature", "Cœur d'ombre", "Cœur d'eau"][i], "Bonus élémentaires", [1, 2, 5, 8], HEART_PRICES, "+X bonus de " + EL_FR[elIdx(e)] + " par tour", { el: elIdx(e) }),
   ),
   mk("heartres", "Cœur de résistance", "Bonus élémentaires", [3, 6, 10, 15], [10, 30, 70, 120], "+X résistances à toutes les cartes alliées par tour"),
   mk("mimicry", "Mimétisme", "Bonus élémentaires", [N, 1, N, N], [N, 50, N, N], "Quand l'adversaire génère un élément, vous en générez 1 du même type"),

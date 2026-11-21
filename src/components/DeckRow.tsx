@@ -69,7 +69,7 @@ export function ToxPlan({ tox, max = 8 }: { tox?: [string, number][]; max?: numb
         const l = toxLabel(k);
         return (
           <span key={k} className="rounded-full bg-black/40 px-2 py-0.5 text-[11px]" title={`Acheté dans ${pct(v, 0)} des parties`}>
-            <span className={RAR_COLOR[+k.split(":").pop()!]}>{l.name}{l.el ? ` ${l.el}` : ""}</span> <span className="text-white/45">{l.r}{l.v !== null && l.v !== undefined && l.v > 1 ? ` ${l.v}` : ""} · {pct(v, 0)}</span>
+            <span className={RAR_COLOR[+k.split(":").pop()!]}>{l.name}{l.el && !l.name.toLowerCase().includes(l.el.toLowerCase()) ? ` ${l.el}` : ""}</span> <span className="text-white/45">{l.r}{l.v !== null && l.v !== undefined && l.v > 1 ? ` ${l.v}` : ""} · {pct(v, 0)}</span>
           </span>
         );
       })}

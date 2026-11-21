@@ -43,9 +43,34 @@ npm run build    # site statique dans out/
 
 ## Fidélité du simulateur
 
-Le moteur affiche son taux de couverture des effets. Dans la version 1.30, 18 types d'effets rares
-(environ 27 occurrences sur 151 cartes : vol de PV max, changement d'élément, destruction…) ne sont pas
-encore simulés. Les prix de certains Tox, comme les Cœurs, sont estimés car le SpamDex ne les publie pas.
+Le moteur (`src/sim/engine.ts`) suit les textes officiels du SpamDex (capacités, Tox, talents, mots-clés)
+et les règles publiées tirées du code de combat du jeu :
+
+- dégâts = (jet + dégâts de base) × (1 + 0,1 × points d'élément) × critique × (1 + Berserk) × (1 − Bouclier) × (1 − résistance),
+  résistances bornées à ±50 %, l'Éther les ignore ;
+- revenus = numéro du tour + Spamtons des cartes, +50 par carte perdue, +10 en passant la boutique, relances 10/15/20 ;
+- boutique les tours pairs, 3 offres, rareté selon la Chance (table du client) ; mort subite à partir du tour 20 ;
+- **un seul talent actif par carte**, choisi par simulation ; les 82 talents sont traités un par un ;
+- capacités de zone, « Choix » (une option, la meilleure), Gel, Éternité/Temporalité, effets sur coup critique,
+  Précision appliquée à tous les effets de la compétence.
+
+Interprétations (le texte officiel laisse une marge) : l'Immunité bloque les *effets* adverses mais pas les dégâts ;
+les dégâts du dégel des capacités « Gel » valent 60 ; Fumée n'est pas simulée (effet non publié) ;
+les dégâts bonus « selon les PV manquants » (2 cartes) ne sont pas comptés. L'IA joue toutes les compétences
+disponibles et achète les Tox selon une estimation de leur valeur : c'est un bon joueur, pas un joueur parfait.
+
+Vérifications automatiques : `npm test` (données, historique des patchs) et `npm run test:engine`
+(3 000 parties aléatoires sans erreur, reproductibilité, zones, Choix, talent unique, Immunité, Gel).
+
+### Recherche du meilleur deck
+
+1. toutes les combinaisons de 4 cartes sont notées par un modèle statique ;
+2. les meilleures jouent contre les decks de la méta (mêmes tirages aléatoires pour tous, pour comparer sans bruit) ;
+3. **recherche locale** : chaque carte des meilleurs decks est remplacée tour à tour par les cartes les plus prometteuses ;
+4. **choix des talents** par simulation, carte par carte ;
+5. statistiques finales avec intervalle de confiance à 95 %.
+
+Le niveau « Extrême » (10 à 20 minutes) joue environ un million de parties et donne une marge d'environ ±0,4 point.
 
 Données et illustrations : © leurs auteurs, via le SpamDex officiel. Conditions d'utilisation :
 https://spamgame.com/conditions-donnees-cartes

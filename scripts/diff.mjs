@@ -1,10 +1,15 @@
 // Différences entre deux versions du SpamDex (repris de l'ancien src/lib/server/dataset.ts) et contrôles d'intégrité.
 
 const flat = (s) => String(s ?? "").replace(/\n/g, " · ");
+/** Version du calcul des différences : la changer force le recalcul de tout l'historique. */
+export const DIFF_VERSION = 2;
+const ab = (a, withStats) => `${flat(a.effect)} (recharge ${a.cooldown}${withStats ? `, précision ${a.precision} %, critique ${a.critChance} %` : ""})`;
 
 /** Liste des changements carte par carte entre deux jeux de données. */
 export function diffDatasets(prev, next) {
   const out = [];
+  const elName = (id) => next.elements?.find((e) => e.id === id)?.name ?? id;
+  const rarName = (id) => next.rarities?.find((r) => r.id === id)?.name ?? id;
   const pc = new Map((prev?.cards ?? []).map((c) => [c.id, c]));
   const seen = new Set();
   for (const c of next.cards) {
@@ -17,11 +22,11 @@ export function diffDatasets(prev, next) {
     }
     if (o.hp !== c.hp) out.push({ ...base, kind: "pv", label: "PV", from: String(o.hp), to: String(c.hp) });
     if (o.spamton !== c.spamton) out.push({ ...base, kind: "spamton", label: "Spamtons", from: String(o.spamton), to: String(c.spamton) });
-    if (o.rarity !== c.rarity) out.push({ ...base, kind: "rarete", label: "Rareté", from: o.rarity, to: c.rarity });
-    if (o.element !== c.element) out.push({ ...base, kind: "element", label: "Élément", from: o.element, to: c.element });
+    if (o.rarity !== c.rarity) out.push({ ...base, kind: "rarete", label: "Rareté", from: rarName(o.rarity), to: rarName(c.rarity) });
+    if (o.element !== c.element) out.push({ ...base, kind: "element", label: "Élément", from: elName(o.element), to: elName(c.element) });
     for (const el of Object.keys(c.resistances ?? {})) {
       if (o.resistances?.[el] !== c.resistances[el])
-        out.push({ ...base, kind: "resistance", label: `Résistance ${el}`, from: String(o.resistances?.[el] ?? 0), to: String(c.resistances[el]) });
+        out.push({ ...base, kind: "resistance", label: `Résistance ${elName(el)}`, from: String(o.resistances?.[el] ?? 0), to: String(c.resistances[el]) });
     }
     const oa = new Map(o.abilities.map((a) => [a.name, a]));
     const na = new Map(c.abilities.map((a) => [a.name, a]));
@@ -29,9 +34,11 @@ export function diffDatasets(prev, next) {
       const b = oa.get(n);
       if (!b) {
         const gone = [...oa.keys()].filter((k) => !na.has(k));
-        out.push({ ...base, kind: "capacite", label: `Capacité « ${n} »`, from: gone.length ? gone.join(", ") : "—", to: `${flat(a.effect)} (recharge ${a.cooldown})` });
+        out.push({ ...base, kind: "capacite", label: `Capacité « ${n} »`, from: gone.length ? gone.join(", ") : "—", to: ab(a, false) });
       } else if (b.effect !== a.effect || b.cooldown !== a.cooldown || b.precision !== a.precision || b.critChance !== a.critChance) {
-        out.push({ ...base, kind: "capacite", label: `Capacité « ${n} »`, from: `${flat(b.effect)} (recharge ${b.cooldown})`, to: `${flat(a.effect)} (recharge ${a.cooldown})` });
+        // précision et critique affichés quand ce sont eux qui changent (sinon la ligne semblerait identique)
+        const stats = b.precision !== a.precision || b.critChance !== a.critChance;
+        out.push({ ...base, kind: "capacite", label: `Capacité « ${n} »`, from: ab(b, stats), to: ab(a, stats) });
       }
     }
     // Capacité retirée sans remplacement (l'original ne le signalait que si toutes les capacités disparaissaient).
