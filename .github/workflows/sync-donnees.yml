@@ -25,7 +25,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install --no-audit --no-fund
       - name: Synchroniser
         run: npm run sync
@@ -35,7 +34,7 @@ jobs:
           npm run typecheck
       - name: Publier si les données ont changé
         run: |
-          git add src/data/seed.json public/
+          git add src/data/seed.json public/ index.html
           if git diff --cached --quiet; then echo "Rien à publier"; exit 0; fi
           git config user.name "spam-lab-bot"
           git config user.email "spam-lab-bot@users.noreply.github.com"

@@ -14,7 +14,8 @@ npm run dev         # http://localhost:3000
 ```
 
 Le Deck Lab autonome (un seul fichier HTML qui fonctionne hors ligne) est servi sur `/deck-lab.html`
-et régénéré à chaque synchro. `npm run deck-lab` le reconstruit sans réseau.
+et copié dans `index.html` à la racine : c'est la page que publie **GitHub Pages**. Il est régénéré à chaque synchro.
+GitHub Pages ne peut pas faire tourner le site Next.js complet (il faut un serveur : Vercel, Netlify…). `npm run deck-lab` le reconstruit sans réseau.
 
 ## Comment les données restent à jour
 

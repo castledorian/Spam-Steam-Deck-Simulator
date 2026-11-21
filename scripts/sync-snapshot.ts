@@ -52,7 +52,9 @@ function buildDeckLab(s: Snapshot) {
   const tpl = readFileSync(join(ROOT, "scripts/deck-lab.template.html"), "utf8");
   // « </ » échappé pour qu'aucun texte de carte ne puisse fermer la balise <script>.
   const json = JSON.stringify(s).replace(/<\//g, "<\\/");
-  writeFileSync(join(ROOT, "public/deck-lab.html"), tpl.replace("/*__DB__*/null", json));
+  const html = tpl.replace("/*__DB__*/null", json);
+  writeFileSync(join(ROOT, "public/deck-lab.html"), html);
+  writeFileSync(join(ROOT, "index.html"), html); // page d'accueil GitHub Pages
 }
 
 (async () => {
