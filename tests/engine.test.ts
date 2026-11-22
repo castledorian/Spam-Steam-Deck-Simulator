@@ -285,7 +285,7 @@ test("invariants : 3 emplacements max, PV bornés, Spamtons négatifs seulement 
   const debt = new Set(comp.cards.filter((c) => c.talents.some((t) => /Dette/.test(t.id))).map((c) => c.num));
   let over = 0, frames = 0;
   for (let i = 0; i < 300; i++) {
-    const fr: import("../src/sim/engine").Frame[] = []; const d = [pick(), pick()];
+    const fr: import("../src/sim/engine").Frame[] = []; const d: [DeckSpec, DeckSpec] = [pick(), pick()];
     playMatch(comp, d, mulberry32(i), { frames: fr, log: [], first: (i & 1) as 0 | 1 });
     for (const f of fr) {
       frames++;
