@@ -37,7 +37,7 @@ function fxOf(line: string | undefined): Fx {
 }
 
 interface AbilityUi { can: boolean; hint: boolean; onClick: () => void }
-function Tile({ c, raw, side, selected, fx, orb, onClick, abil, mode }: { c: BoardCard; raw?: RawCard; side: number; selected: boolean; fx: Fx; orb: string | null; onClick: () => void; abil?: AbilityUi[]; mode?: "target" | "buy" | null }) {
+function Tile({ c, raw, side, selected, fx, orb, onClick, abil, mode, badge }: { badge?: string; c: BoardCard; raw?: RawCard; side: number; selected: boolean; fx: Fx; orb: string | null; onClick: () => void; abil?: AbilityUi[]; mode?: "target" | "buy" | null }) {
   const ratio = raw ? `${raw.artwork.width}/${raw.artwork.height}` : "3/4";
   const pct = c.max ? Math.max(0, Math.min(1, c.hp / c.max)) : 0;
   const hit = fx.target && fx.target[0] === side && fx.target[1] === c.name ? fx.target : null;
@@ -46,6 +46,7 @@ function Tile({ c, raw, side, selected, fx, orb, onClick, abil, mode }: { c: Boa
     <div className="min-w-0">
       <button type="button" onClick={onClick} aria-label={c.name} className={`relative block w-full overflow-hidden rounded-xl border bg-[#0b0618] text-left transition ${mode === "target" ? "animate-pulse border-red-400" : mode === "buy" ? "animate-pulse border-emerald-300" : selected ? "border-white" : cast ? "border-amber-300" : "border-white/15 hover:border-white/50"} ${c.alive ? "" : "opacity-40 grayscale"}`} style={{ aspectRatio: ratio, boxShadow: mode === "target" ? "0 0 16px rgba(248,113,113,.7)" : mode === "buy" ? "0 0 16px rgba(110,231,183,.7)" : cast ? "0 0 14px rgba(255,199,86,.55)" : undefined }}>
         {raw && /* eslint-disable-next-line @next/next/no-img-element */ <img src={img(raw.artwork.tiny)} alt="" decoding="async" className="h-full w-full object-contain" />}
+        {badge && <span className="absolute right-1 top-1 rounded bg-black/70 px-1.5 text-[11px] text-white/85">🌫 {badge}</span>}
         {c.frozen && <span className="absolute inset-0 bg-cyan-300/25" />}
         {orb && /* eslint-disable-next-line @next/next/no-img-element */ <img src={orb} alt="" className="absolute left-0.5 top-0.5 h-[28%] w-auto drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]" style={{ maxWidth: "38%" }} />}
         <span className="absolute right-1 top-1 flex gap-0.5 text-[11px] leading-none">{c.taunt && <span title="Provocation">🛡</span>}{c.frozen && <span title="Gelée">❄</span>}{c.poison > 0 && <span title="Empoisonnée">☠</span>}</span>
@@ -261,14 +262,27 @@ export function PlateauView() {
     <div className="space-y-2">
       <Resources b={board} side={side} />
       <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-        {board.cards[side].map((c, i) => {
+        {board.cards[side].map((c, i) => ({ c, i })).sort((x, y) => x.c.slot - y.c.slot).map(({ c, i }) => {
           const isTarget = pending?.kind === "target" && targetIdx(side, i) >= 0;
+          // Fumée : en jouant, les cartes adverses retournées ne montrent pas leur identité ; en mode « bots » on regarde tout, avec un repère
+          if (c.hidden && c.alive && side === 1 && mode === "play") {
+            return (
+              <div key={i} className="min-w-0">
+                <button type="button" onClick={() => { if (isTarget) answer(targetIdx(side, i)); }} aria-label="Carte face cachée"
+                  className={`flex aspect-[3/4] w-full flex-col items-center justify-center gap-1 rounded-xl border bg-gradient-to-br from-[#2a1650] to-[#0b0618] text-center ${isTarget ? "animate-pulse border-red-400" : "border-white/20"}`}
+                  style={isTarget ? { boxShadow: "0 0 16px rgba(248,113,113,.7)" } : undefined}>
+                  <span className="font-display text-3xl text-white/70" aria-hidden>?</span>
+                  <span className="px-1 text-[11px] leading-tight text-white/65">Face cachée (Fumée)</span>
+                </button>
+              </div>
+            );
+          }
           const isBuy = pending?.kind === "turn" && armed !== null && side === 0 && buyIdxs(armed, i).length > 0;
           const abil: AbilityUi[] | undefined = pending?.kind === "turn" && side === 0
             ? c.abilities.map((_, k) => { const ix = castIdx(i, k); return { can: ix >= 0, hint: hint && ix >= 0 && ix === pending.def, onClick: () => answer(ix) }; })
             : undefined;
           return (
-            <Tile key={i} c={c} raw={rawOf(c)} side={side} orb={orbOf(c)} fx={fx} abil={abil} mode={isTarget ? "target" : isBuy ? "buy" : null}
+            <Tile key={i} c={c} raw={rawOf(c)} side={side} badge={c.hidden && c.alive ? "caché" : undefined} orb={orbOf(c)} fx={fx} abil={abil} mode={isTarget ? "target" : isBuy ? "buy" : null}
               selected={!!sel && sel[0] === side && sel[1] === i}
               onClick={() => {
                 if (isTarget) return answer(targetIdx(side, i));

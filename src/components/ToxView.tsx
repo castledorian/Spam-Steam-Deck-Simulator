@@ -10,7 +10,7 @@ const RC = ["#9692A0", "#4FE6FF", "#C06AFF", "#FFC756"];
 /** Comment le simulateur interprète les Tox dont le texte officiel laisse une marge. */
 const SIM_NOTE: Partial<Record<string, string>> = {
   immunity: "Simulé : bloque les effets des cartes adverses (poison, gel, Éternité, malus, vol de PV max…) mais pas les dégâts directs. Interprétation : des cartes commencent avec ce Tox et seraient sinon invulnérables.",
-  smoke: "Effet non publié par le jeu : non simulé (jamais acheté par l'IA).",
+  smoke: "Après une compétence de dégâts ou de soins de la carte, les 4 cartes du camp sont mélangées face cachée : l'adversaire ne peut plus viser une carte précise (au hasard parmi les cartes cachées) tant qu'elles n'agissent pas ou ne subissent pas d'effet. La valeur de l'IA pour ce Tox est une estimation.",
   freeze: "Simulé : la carte gelée passe son prochain tour ; le prochain dégât, soin ou Tox brise la glace et inflige les dégâts indiqués.",
   graveyard: "Simulé : se déclenche à la mort de n'importe quelle carte du terrain.",
   avenger: "Simulé : se déclenche à la mort de n'importe quelle carte qu'il n'a pas tuée, même s'il est immunisé.",

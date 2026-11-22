@@ -35,6 +35,8 @@ export interface MatchOpts {
 /** État public du terrain (affichage du plateau, journal animé). */
 export interface BoardCard {
   num: number; name: string; el: number; hp: number; max: number; alive: boolean; frozen: boolean; taunt: boolean;
+  /** Fumée : carte face cachée (identité inconnue de l'adversaire) et position sur le terrain après mélange. */
+  hidden: boolean; slot: number;
   abilities: { name: string; cd: number; ready: boolean; text: string }[];
   tox: { fam: string; r: number; v: number; el: number }[]; res: number[]; poison: number;
 }
@@ -115,6 +117,7 @@ interface RCard {
   d: CCard; side: number; i: number; hp: number; max: number; alive: boolean;
   abs: CAbility[]; cd: number[]; uses: number[]; abB: number[]; stack: number[]; echoB: number;
   tox: Tox[]; res: number[]; frozen: boolean; frozenVal: number; poison: { pct: number; t: number }[];
+  hidden: boolean; slot: number;
   critB: number; critMB: number; accB: number; baseB: number; gen: number; revealed: boolean; tenUsed: boolean; phxUsed: boolean;
   resurrect: number; resurrectMeta: boolean; revived: boolean; chanceVit: number; insEt: boolean; insVan: boolean; resetUlt: boolean;
   steal: number; doubleAt: number; shieldUsed: boolean; multicolor: number; steel: boolean; inv: boolean;
@@ -175,7 +178,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     pts: sides.map((x) => x.pts.slice(0, 7).map((p) => Math.round(p))),
     cards: sides.map((x) => x.cards.map((c) => ({
       num: c.d.num, name: c.d.name, el: c.elCur, hp: Math.max(0, Math.round(c.hp)), max: Math.round(c.max), alive: c.alive, frozen: c.frozen,
-      taunt: x.taunt === c && x.tauntLeft > 0,
+      taunt: x.taunt === c && x.tauntLeft > 0, hidden: c.hidden, slot: c.slot,
       abilities: c.abs.map((a, k) => ({ name: a.name, cd: c.cd[k] ?? 0, ready: c.alive && !c.frozen && canCast(x, sides[1 - c.side], c, k), text: a.text })),
       tox: c.tox.map((t) => ({ fam: t.fam, r: t.r, v: t.v, el: t.el })), res: c.res.slice(0, 6).map((r) => Math.round(r)),
       poison: c.poison.length,
@@ -212,6 +215,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   const mkTox = (fam: Fam, r: number, el = -1): Tox => ({ fam, r, v: toxVal(comp, fam, r, el), el });
   const changeCd = (t: RCard, delta: number, fromEnemy: boolean) => {
     if (!t.alive) return;
+    t.hidden = false; // Fumée : subir un effet retourne la carte
     if (delta > 0 && (t.insEt || (fromEnemy && immune(t)))) return;
     for (let k = 0; k < t.cd.length; k++) t.cd[k] = Math.max(0, t.cd[k] + delta);
   };
@@ -224,6 +228,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   };
   const freeze = (t: RCard, v: number, src: RCard) => {
     if (!t.alive || (t.side !== src.side && immune(t))) return;
+    t.hidden = false;
     t.frozen = true;
     t.frozenVal = Math.max(t.frozenVal, v);
   };
@@ -278,7 +283,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         cd: d.abilities.map((a) => Math.max(0, a.cd - 1 - (s !== first ? 1 : 0))),
         uses: d.abilities.map((a) => a.uses), abB: d.abilities.map(() => 0), stack: d.abilities.map(() => 0), echoB: 0,
         tox: d.skills.map((t) => ({ ...t })), res: d.res.slice(), frozen: false, frozenVal: 0, poison: [],
-        critB: 0, critMB: 0, accB: 0, baseB: 0, gen: 0, revealed: false, tenUsed: false, phxUsed: false,
+        hidden: false, slot: i, critB: 0, critMB: 0, accB: 0, baseB: 0, gen: 0, revealed: false, tenUsed: false, phxUsed: false,
         resurrect: 0, resurrectMeta: false, revived: false, chanceVit: 0, insEt: false, insVan: false, resetUlt: false,
         steal: 0, doubleAt: 0, shieldUsed: false, multicolor: 0, steel: false, inv: false,
         elCur: d.element, tk: "", tv: 0, once: new Set(), evo: [], frenzy: 0,
@@ -428,6 +433,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   };
   const rawDamage = (tgt: RCard, dmg: number, src: RCard | null) => {
     if (!tgt.alive || dmg <= 0) return 0;
+    tgt.hidden = false;
     dmg = Math.floor(dmg);
     tgt.hp -= dmg;
     if (tgt.hp <= 0) {
@@ -447,6 +453,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   };
   const healCard = (c: RCard, amt: number, src: RCard | null): number => {
     if (!c.alive || amt <= 0) return 0;
+    c.hidden = false;
     if (c.frozen) breakIce(c, src);
     if (!c.alive) return 0;
     const before = c.hp;
@@ -493,7 +500,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (c.steal && E.spam > 0 && enemyHit) { const st = Math.min(E.spam, c.steal); E.spam -= st; S.spam += st; }
     if (tgt.alive && !imm) {
       const fr = tx(c, "freeze"); if (fr) freeze(tgt, fr.v, c);
-      const po = tx(c, "poison"); if (po) tgt.poison.push({ pct: po.v, t: 3 });
+      const po = tx(c, "poison"); if (po) { tgt.poison.push({ pct: po.v, t: 3 }); tgt.hidden = false; }
       if (tx(c, "eternity")) changeCd(tgt, c.inv ? -1 : 1, enemyHit);
       if (tx(c, "temporality") && c.inv) changeCd(tgt, 1, enemyHit);
       if (tx(c, "vanish") && !tgt.insVan && tgt.tox.length) { const lost = tgt.tox.pop()!; if (log) say(`  ⌫ Disparition : ${nm(tgt)} perd « ${lost.fam} »`); }
@@ -545,6 +552,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     let bi = 0;
     let bestS = -1e9;
     const feats: number[][] | null = opts.choose || P.tW ? [] : null;
+    const scores: number[] = [];
     const dmg = acts.filter((x) => isDmgEffect(x.effect));
     const el = dmg[0]?.el ?? -1;
     const pts = el >= 0 ? S.pts[el] : 0;
@@ -567,11 +575,20 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         if (P.tW) { sc = 0; for (let q = 0; q < f.length; q++) sc += f[q] * (P.tW[q] ?? 0); }
       }
       sc += rng() * (P.tW ? 0.001 : 0.5);
+      scores.push(sc);
       if (sc > bestS) { bestS = sc; bi = k; }
+    }
+    // Fumée : les cartes face cachées sont indiscernables : le choix se fait au hasard parmi elles, sur la valeur moyenne du groupe
+    const hid = cand.map((x, k) => (x.hidden ? k : -1)).filter((k) => k >= 0);
+    if (hid.length > 1) {
+      const mean = hid.reduce((p, k) => p + scores[k], 0) / hid.length;
+      bestS = -1e9; bi = 0;
+      cand.forEach((x, k) => { const v = x.hidden ? mean : scores[k]; if (v > bestS) { bestS = v; bi = k; } });
+      if (cand[bi].hidden) bi = hid[Math.floor(rng() * hid.length)];
     }
     if (opts.choose && cand.length > 1) {
       const cc = cand;
-      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, feat: feats ?? undefined, ref: (i) => ({ tag: "target", side: cc[i].side, card: cc[i].i }), label: (i) => `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
+      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, feat: feats ?? undefined, ref: (i) => ({ tag: "target", side: cc[i].side, card: cc[i].i }), label: (i) => cc[i].hidden ? `${a.name} → carte face cachée (position ${cc[i].slot + 1})` : `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
     }
     return cand[bi];
   };
@@ -678,7 +695,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
           }
         }
         if (a.textAoe && main) for (const di of [-1, 1]) {
-          const n = E.cards[main.i + di];
+          const n = E.cards.find((y) => y.slot === main!.slot + di);
           if (n && n.alive) rawDamage(n, (dealtTotal * a.textAoe) / 100, c);
         }
         if (a.textVamp && dealtTotal > 0) healCard(c, (dealtTotal * a.textVamp) / 100, c);
@@ -703,6 +720,14 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       else if (a.taunt === "randomAlly") { const t = pick(alive(S).filter((x) => x !== S.taunt)); if (t) { S.taunt = t; S.tauntLeft = 1; } }
     }
     c.revealed = true;
+    c.hidden = false; // une carte qui agit est retournée…
+    // Fumée : après une compétence de dégâts ou de soins, les 4 cartes du camp (celle-ci comprise) sont mélangées et retournées
+    if (tx(c, "smoke") && (hasDmgNow || a.hasHeal)) {
+      const slots = S.cards.map((x) => x.slot);
+      for (let k = slots.length - 1; k > 0; k--) { const j = Math.floor(rng() * (k + 1)); [slots[k], slots[j]] = [slots[j], slots[k]]; }
+      S.cards.forEach((x, k) => { x.slot = slots[k]; x.hidden = true; });
+      if (log) say(`  🌫 Fumée : les cartes de ${c.side === 0 ? "A" : "B"} sont mélangées face cachée`);
+    }
     if (free) return;
     // recharge
     if (a.uses > 0) c.uses[ai] -= 1;
@@ -977,7 +1002,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       case "reset": return 0.1 * castRate;
       case "taunt": return 0.05 * hpShare * 2;
       case "camo": return 0.1 * (0.3 + hpShare);
-      case "smoke": return 0; // effet non publié : jamais acheté par l'IA
+      case "smoke": return c.d.castRate > 0 ? 0.05 : 0; // estimation : l'adversaire ne peut plus viser une carte précise ; n'agit que si la carte attaque ou soigne
       case "mimicry": return 0.08;
       case "backlash": return -1;
       case "freeze": return (healer ? -0.05 : 0) + 0.22 * share + 0.03;

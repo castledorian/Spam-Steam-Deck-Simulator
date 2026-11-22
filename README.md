@@ -55,7 +55,7 @@ et les règles publiées tirées du code de combat du jeu :
   Précision appliquée à tous les effets de la compétence.
 
 Interprétations (le texte officiel laisse une marge) : l'Immunité bloque les *effets* adverses mais pas les dégâts ;
-les dégâts du dégel des capacités « Gel » valent 60 ; Fumée n'est pas simulée (effet non publié) ;
+les dégâts du dégel des capacités « Gel » valent 60 ; Fumée : après une compétence de dégâts ou de soins, les 4 cartes du camp sont mélangées face cachée (position aléatoire) et ne se révèlent qu'en agissant ou en subissant un effet ; l'adversaire cible alors au hasard parmi elles (la valeur d'achat de l'IA pour ce Tox est une estimation) ;
 les dégâts bonus « selon les PV manquants » (2 cartes) ne sont pas comptés.
 
 ### Deux IA de jeu

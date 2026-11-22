@@ -295,3 +295,25 @@ test("invariants : 3 emplacements max, PV bornés, Spamtons négatifs seulement 
   }
   assert.ok(over / frames < 0.002, `dépassement d'emplacements : ${over}/${frames}`);
 });
+
+test("Fumée : après une compétence de dégâts ou de soins, les 4 cartes sont mélangées face cachée ; elles se révèlent en agissant ou en subissant un effet", () => {
+  assert.ok(comp.byNum.get(num("Vivy"))!.skills.some((s) => s.fam === "smoke"), "Vivy possède Fumée");
+  let allHidden = 0, revealedAfter = 0, shuffled = 0, hiddenOnly = 0;
+  for (let sd = 1; sd <= 40; sd++) {
+    const frames: import("../src/sim/engine").Frame[] = [];
+    playMatch(comp, [deck(["Vivy", "Esprit Feu", "Esprit Eau", "Esprit Terre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(sd), { frames, log: [], first: 0 });
+    let wasHidden = false;
+    for (const f of frames) {
+      const a = f.board.cards[0];
+      const nh = a.filter((c) => c.alive && c.hidden).length;
+      if (/🌫 Fumée/.test(f.line)) { assert.equal(nh, a.filter((c) => c.alive).length, "toutes les cartes vivantes du camp sont retournées"); allHidden++; wasHidden = true; if (a.some((c, i) => c.slot !== i)) shuffled++; }
+      else if (wasHidden && nh < a.filter((c) => c.alive).length) { revealedAfter++; wasHidden = false; }
+      if (f.board.cards[1].some((c) => c.hidden)) hiddenOnly++;
+      assert.equal(new Set(a.map((c) => c.slot)).size, 4, "les positions restent une permutation");
+    }
+  }
+  assert.ok(allHidden > 0, "la Fumée se déclenche");
+  assert.ok(shuffled > 0, "les positions changent");
+  assert.ok(revealedAfter > 0, "une carte se révèle après avoir agi ou subi un effet");
+  assert.equal(hiddenOnly, 0, "seul le camp avec Fumée est caché");
+});

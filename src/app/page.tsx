@@ -133,7 +133,7 @@ export default function Home() {
             <li>Après chaque patch, un laboratoire recalcule la méta et l&apos;impact de chaque élément ; rien à lancer.</li>
             <li>Chaque taux de victoire est donné avec son intervalle de confiance à 95 %.</li>
           </ol>
-          <p className="text-xs text-white/60">Limites : le simulateur n&apos;est pas calibré sur des parties réelles (aucune donnée publique), quelques effets au texte ambigu sont des interprétations, et l&apos;effet Fumée n&apos;est pas simulé.</p>
+          <p className="text-xs text-white/60">Limites : le simulateur n&apos;est pas calibré sur des parties réelles (aucune donnée publique), quelques effets au texte ambigu sont des interprétations.</p>
         </details>
       </section>
     </div>

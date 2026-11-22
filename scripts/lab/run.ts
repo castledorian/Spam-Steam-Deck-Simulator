@@ -12,7 +12,7 @@ import { defaultTalent, DEFAULT_AI, talentSlots, type DeckSpec } from "../../src
 import type { Task } from "./worker";
 
 /** À incrémenter quand le moteur ou la méthode change (force un nouveau calcul). */
-export const LAB_VERSION = 4;
+export const LAB_VERSION = 5;
 
 const args = new Set(process.argv.slice(2));
 const QUICK = args.has("--quick");
