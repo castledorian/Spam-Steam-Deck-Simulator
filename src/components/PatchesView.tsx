@@ -30,9 +30,10 @@ export function PatchesView() {
   const [filter, setFilter] = useState("");
   return (
     <div className="space-y-6">
-      <PageHeader group="references" title="Patchs & évolutions des cartes" lead="Les changements de chaque version du jeu, détectés automatiquement." more={<p>Le site vérifie le SpamDex officiel toutes les heures : dès qu&apos;une nouvelle version est publiée, les cartes, statistiques, passifs et talents sont mis à jour et le site est republié. Les différences entre versions sont calculées automatiquement.
-        </p>
-        <p className="mt-2 text-sm text-white/55">Version actuelle : <b className="text-white">{ds?.version ?? "…"}</b>{info && <> · publiée par les développeurs le {new Date(info.generatedAt).toLocaleString("fr-FR")}{info.source === "direct" ? " (lue en direct)" : ""}</>}</p>} />
+      <PageHeader group="references" title="Patchs & évolutions des cartes" lead="Les changements de chaque version du jeu, détectés automatiquement."
+        more={<p>Le site vérifie le SpamDex officiel toutes les heures : dès qu&apos;une nouvelle version est publiée, les cartes, statistiques, passifs et talents sont mis à jour et le site est republié. Les différences entre versions sont calculées automatiquement.</p>}>
+        <p className="text-sm text-white/65">Version actuelle : <b className="text-white">{ds?.version ?? "…"}</b>{info && <> · publiée par les développeurs le {new Date(info.generatedAt).toLocaleString("fr-FR")}{info.source === "direct" ? " (lue en direct)" : ""}</>}</p>
+      </PageHeader>
       <input className="input max-w-xs" placeholder="Filtrer par carte…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       {patches === null && <p className="text-white/60">Chargement de l&apos;historique…</p>}
       {patches && patches.length === 0 && <p className="panel p-6 text-white/60">L&apos;historique sera calculé lors de la prochaine synchronisation automatique (au plus une heure).</p>}
