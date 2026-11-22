@@ -11,6 +11,8 @@ const LINKS = [
   { href: "/collection", label: "Ma collection" },
   { href: "/simulateur", label: "Simulateur" },
   { href: "/meta", label: "Méta & Tier list" },
+  { href: "/impact", label: "Impact" },
+  { href: "/analyse", label: "Analyse de partie" },
   { href: "/tox", label: "Tox & Talents" },
   { href: "/patchs", label: "Patchs" },
 ];

@@ -10,6 +10,8 @@ const FEATURES = [
   { href: "/collection", t: "Ma collection", d: "Indiquez vos cartes et vos talents débloqués : le simulateur ne propose que ce que vous possédez." },
   { href: "/simulateur", t: "Simulateur de decks", d: "Évalue toutes les combinaisons de 4 cartes, puis simule des milliers de duels avec boutique de Tox, Chance et talents." },
   { href: "/meta", t: "Méta & tier list", d: "Les meilleurs decks du jeu s'affrontent entre eux : classement avec intervalle de confiance." },
+  { href: "/impact", t: "Impact sur la victoire", d: "Ce que rapporte vraiment chaque Tox, carte, talent, capacité et point d'élément, mesuré par des millions de parties." },
+  { href: "/analyse", t: "Analyse de partie", d: "Une IA experte teste chaque coup sur des dizaines de fins de partie, comme un moteur d'échecs, et montre les meilleurs choix." },
   { href: "/tox", t: "Tox & talents", d: "Catalogue des passifs, prix, probabilités de la boutique selon la Chance, glossaire." },
   { href: "/patchs", t: "Patchs automatiques", d: "Synchronisation avec le SpamDex officiel et différences calculées entre chaque version." },
 ];

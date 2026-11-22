@@ -13,7 +13,7 @@ const TIERS: { t: string; min: number; color: string }[] = [
 ];
 
 export function MetaView() {
-  const { meta, metaBusy, ensureMeta, ds, byNum, cards, loading } = useSpam();
+  const { meta, metaBusy, ensureMeta, ds, byNum, cards, loading, lab, metaSource, resetToLabMeta } = useSpam();
   const [precision, setPrecision] = useState<Precision>("precis");
   const [phase, setPhase] = useState("");
   const [p, setP] = useState(0);
@@ -45,14 +45,21 @@ export function MetaView() {
         <div>
           <h1 className="font-display text-3xl text-white sm:text-4xl">Méta & Tier list</h1>
           <p className="mt-1 max-w-3xl text-sm text-white/65">
-            Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Le résultat est mémorisé dans ce navigateur et sert d&apos;adversaires de référence dans le simulateur.
+            Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Cette méta sert d&apos;adversaires de référence dans le simulateur.
           </p>
+          {meta && (
+            <p className="mt-2 text-xs text-white/55">
+              {metaSource === "lab"
+                ? <>Méta de référence calculée par le site après chaque patch ({meta.sims.toLocaleString("fr-FR")} parties). Rien à lancer.</>
+                : <>Méta calculée dans ce navigateur.{lab && <> <button className="underline hover:text-white" onClick={resetToLabMeta}>Revenir à la méta de référence du site</button></>}</>}
+            </p>
+          )}
         </div>
         <div className="panel flex flex-wrap items-center gap-3 p-3 text-sm">
           <select className="input !w-auto" value={precision} onChange={(e) => setPrecision(e.target.value as Precision)} disabled={metaBusy}>
             {PRECISIONS.map((x) => <option key={x} value={x}>{PRECISION_LABEL[x]} — {PRECISION_INFO[x]}</option>)}
           </select>
-          <button className="btn btn-primary" onClick={() => void run()} disabled={metaBusy}>{metaBusy ? "Calcul…" : meta ? "↻ Recalculer la méta" : "▶ Calculer la méta"}</button>
+          <button className={`btn ${metaSource === "lab" ? "" : "btn-primary"}`} onClick={() => void run()} disabled={metaBusy}>{metaBusy ? "Calcul…" : meta ? "↻ Recalculer ici" : "▶ Calculer la méta"}</button>
         </div>
       </div>
       {metaBusy && (
@@ -69,6 +76,8 @@ export function MetaView() {
             <div><div className="font-display text-2xl">{meta.sims.toLocaleString("fr-FR")}</div><div className="text-xs text-white/50">matchs simulés</div></div>
             <div><div className="font-display text-2xl">patch {meta.version}</div><div className="text-xs text-white/50">calculée le {new Date(meta.at).toLocaleDateString("fr-FR")}</div></div>
           </div>
+
+          {lab && lab.expert.decks.length > 0 && <ExpertMeta />}
 
           <section className="space-y-3">
             <h2 className="font-display text-2xl text-white">Meilleurs decks (decks contre decks)</h2>
@@ -106,5 +115,34 @@ export function MetaView() {
       )}
       {open && <CardModal card={open} onClose={() => setOpen(null)} />}
     </div>
+  );
+}
+
+/** Les meilleurs decks rejoués par l'IA experte (recherche Monte-Carlo à chaque décision, des deux côtés). */
+function ExpertMeta() {
+  const { lab } = useSpam();
+  if (!lab) return null;
+  const decks = lab.expert.decks.map((d, i) => ({ d, i })).sort((a, b) => b.d.wr - a.d.wr);
+  return (
+    <section className="space-y-3">
+      <h2 className="font-display text-2xl text-white">Classement « IA experte »</h2>
+      <p className="max-w-3xl text-xs text-white/55">
+        Les {decks.length} meilleurs decks rejoués entre eux par l&apos;IA experte : à chaque décision (cible, ordre des capacités, achat, relance), chaque option est testée sur {lab.expert.rollouts * 2}+ fins de partie et la meilleure est jouée, comme un moteur d&apos;échecs. Plus proche d&apos;un bon joueur que l&apos;IA rapide, mais avec moins de parties (intervalle plus large). Écart = différence avec le classement de l&apos;IA rapide.
+      </p>
+      <div className="grid gap-2">
+        {decks.map(({ d }, rank) => {
+          const delta = d.wr - d.heur;
+          return (
+            <article key={rank} className="panel flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
+              <div className="w-9 font-display text-2xl text-[#ffc756]">#{rank + 1}</div>
+              <DeckCards cards={d.cards} size={52} />
+              <div className="flex-1" />
+              <div className="text-right text-xs text-white/50">IA rapide : {pct(d.heur)}<br /><span className={delta >= 0 ? "text-emerald-300" : "text-red-300"}>écart {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1).replace(".", ",")} pts</span></div>
+              <div className="w-full sm:w-auto"><WinBar d={d} /></div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }

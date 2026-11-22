@@ -5,6 +5,9 @@ import { compile, type Compiled } from "./compile";
 import { defaultTalent, talentSlots } from "./engine";
 import type { PlayJob, PlayOut } from "./worker";
 import type { Ranked } from "./ranking";
+import type { DecisionRec } from "./search";
+
+export interface AnalyseOut { log: string[]; trace: Snapshot[]; result: MatchResult; decisions: DecisionRec[]; rollouts: number }
 
 export interface DeckStat {
   cards: number[]; lv: number[]; tal?: number[]; wr: number; lo: number; hi: number; n: number;
@@ -73,6 +76,11 @@ export class SimPool {
 
   rank(pool: number[], topK: number, onProgress?: (p: number) => void, maxShare = 2): Promise<Ranked[]> {
     return this.call<Ranked[]>(0, "rank", { pool, topK, maxShare }, onProgress);
+  }
+
+  /** Partie analysée par l'IA experte. onProgress reçoit le nombre de décisions déjà évaluées. */
+  analyse(decks: [DeckSpec, DeckSpec], seed: number, rollouts: number, sides: [boolean, boolean], first: 0 | 1, onProgress?: (k: number) => void) {
+    return this.call<AnalyseOut>(this.size - 1, "analyse", { decks, seed, rollouts, sides, first }, onProgress);
   }
 
   duel(a: DeckSpec, b: DeckSpec, seed: number) {
@@ -333,11 +341,16 @@ export async function optimize(
 }
 
 /** Construit la méta : meilleurs decks de tout le pool de cartes qui s'affrontent entre eux. */
-export async function buildMeta(sim: SimPool, all: number[], version: string, precision: Precision, cb: ProgressCb): Promise<MetaPayload> {
-  const K = { rapide: 120, precis: 250, maximal: 500, extreme: 1000 }[precision];
-  const k1 = { rapide: [10, 4, 32], precis: [12, 6, 40], maximal: [16, 8, 48], extreme: [20, 10, 56] }[precision];
-  const sims2 = { rapide: 12, precis: 24, maximal: 60, extreme: 150 }[precision];
-  const talSims = { rapide: 0, precis: 16, maximal: 30, extreme: 60 }[precision];
+export interface MetaParams { K: number; k1: [number, number, number]; sims2: number; talSims: number; talTop: number; talRounds: number }
+export const META_PARAMS: Record<Precision, MetaParams> = {
+  rapide: { K: 120, k1: [10, 4, 32], sims2: 12, talSims: 0, talTop: 16, talRounds: 1 },
+  precis: { K: 250, k1: [12, 6, 40], sims2: 24, talSims: 16, talTop: 16, talRounds: 1 },
+  maximal: { K: 500, k1: [16, 8, 48], sims2: 60, talSims: 30, talTop: 16, talRounds: 1 },
+  extreme: { K: 1000, k1: [20, 10, 56], sims2: 150, talSims: 60, talTop: 16, talRounds: 1 },
+};
+export async function buildMeta(sim: SimPool, all: number[], version: string, precision: Precision | MetaParams, cb: ProgressCb): Promise<MetaPayload> {
+  const MP = typeof precision === "string" ? META_PARAMS[precision] : precision;
+  const { K, k1, sims2, talSims } = MP;
   const spec = (cards: number[]): DeckSpec => withTalents(sim.comp, { cards, lv: cards.map(() => 3) });
   cb("Évaluation statique de toutes les combinaisons de cartes", 0);
   const ranked = await sim.rank(all, K, (p) => cb("Évaluation statique de toutes les combinaisons de cartes", p * 0.2), 2);
@@ -352,10 +365,10 @@ export async function buildMeta(sim: SimPool, all: number[], version: string, pr
   let field = cands.map((d, i) => ({ d, w: wr(st1[i]) })).sort((a, b) => b.w - a.w).slice(0, k1[2]).map((x) => x.d);
   // talents des 16 meilleurs decks choisis contre le reste du terrain
   if (talSims) {
-    const top = field.slice(0, 16);
-    const tuned = await optimizeTalents(sim, top, field, talSims, 1, seed0 + 5, (p) => cb("Méta 2/3 · choix des talents", 0.45 + p * 0.2));
-    matches += top.length * 13 * field.length * talSims;
-    field = tuned.concat(field.slice(16));
+    const top = field.slice(0, MP.talTop);
+    const tuned = await optimizeTalents(sim, top, field, talSims, MP.talRounds, seed0 + 5, (p) => cb("Méta 2/3 · choix des talents", 0.45 + p * 0.2));
+    matches += top.length * 13 * field.length * talSims * MP.talRounds;
+    field = tuned.concat(field.slice(MP.talTop));
   }
   const pairs2: [number, number][] = [];
   field.forEach((_, a) => field.forEach((_, b) => { if (a !== b) pairs2.push([a, b]); }));

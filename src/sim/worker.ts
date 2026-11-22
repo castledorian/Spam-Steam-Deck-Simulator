@@ -2,6 +2,7 @@
 import { compile, Compiled, RawDataset } from "./compile";
 import { DeckSpec, mulberry32, playMatch, Snapshot } from "./engine";
 import { rankDecks } from "./ranking";
+import { searchMatch, type DecisionRec } from "./search";
 
 let comp: Compiled | null = null;
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -47,6 +48,19 @@ ctx.onmessage = (e: MessageEvent) => {
       const rng = mulberry32(payload.seed as number);
       const r = playMatch(comp, payload.decks as [DeckSpec, DeckSpec], rng, { log, trace });
       ctx.postMessage({ id, result: { log, trace, result: r } });
+      return;
+    }
+    if (type === "analyse") {
+      // partie jouée par l'IA experte (recherche Monte-Carlo à chaque décision)
+      const p = payload as { decks: [DeckSpec, DeckSpec]; seed: number; rollouts: number; sides: [boolean, boolean]; first: 0 | 1 };
+      const log: string[] = [];
+      const trace: Snapshot[] = [];
+      let k = 0;
+      const r = searchMatch(comp, p.decks, p.seed, {
+        rollouts: p.rollouts, sides: p.sides,
+        onDecision: (d: DecisionRec) => { k++; ctx.postMessage({ id, progress: k, turn: d.turn }); },
+      }, { first: p.first, log, trace });
+      ctx.postMessage({ id, result: { log, trace, result: r.result, decisions: r.decisions, rollouts: r.rollouts } });
       return;
     }
     throw new Error("type inconnu " + type);

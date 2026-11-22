@@ -17,7 +17,41 @@ import {
 
 /** tal[i] : emplacement du talent actif de la carte i (0 = aucun). Absent : talent par défaut (le plus haut débloqué). */
 export interface DeckSpec { cards: number[]; lv: number[]; tal?: number[] }
-export interface MatchOpts { log?: string[]; trace?: Snapshot[]; collect?: boolean; first?: 0 | 1; terrain?: number }
+export interface MatchOpts {
+  log?: string[]; trace?: Snapshot[]; collect?: boolean; first?: 0 | 1; terrain?: number;
+  /** Point de décision : renvoie l'option jouée (0..n-1). Absent : l'IA heuristique décide seule. */
+  choose?: Chooser;
+  /** Réglages de l'IA heuristique, par joueur. */
+  ai?: [AiParams | undefined, AiParams | undefined];
+  /** Expériences d'impact : Tox offert à un tour donné, points d'élément offerts au départ, capacité jamais lancée. */
+  giftTox?: { side: 0 | 1; turn: number; fam: Fam; r: number; el: number };
+  giftPts?: { side: 0 | 1; el: number; v: number };
+  mute?: { side: 0 | 1; card: number; ab: number };
+}
+export type DecisionKind = "cast" | "target" | "shop" | "option";
+/** Une décision de jeu : n options, def = choix de l'IA heuristique, label(i) = description de l'option i. */
+export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string }
+export type Chooser = (d: Decision) => number;
+
+/** Paramètres de l'IA heuristique (valeurs par défaut = réglage de référence). */
+export interface AiParams {
+  shopThr: number; shopDecay: number; rerollMax: number; rerollTurn: number; rerollReserve: number;
+  tKill: number; tThreat: number; tDmg: number; tReflect: number; tFrozen: number;
+  /** Coefficient appliqué à l'intérêt de tuer une carte qui va revenir (Phénix, Transition…). */
+  tRevive: number;
+  /** Part des PV de retour (Phénix, Transition) comptée dans les PV restants de la cible. */
+  tBack: number;
+  /** Coût d'un Spamton dépensé, en unités d'utilité (0 = le prix est ignoré). */
+  priceW: number;
+  /** Ordre des capacités : priorité par catégorie [moteur sans dégâts, utilitaire, soin, dégâts] (plus petit = d'abord). */
+  pr: [number, number, number, number];
+  fam: Partial<Record<Fam, number>>;
+}
+export const DEFAULT_AI: AiParams = {
+  shopThr: 0.03, shopDecay: 24, rerollMax: 2, rerollTurn: 14, rerollReserve: 20,
+  tKill: 1000, tThreat: 40, tDmg: 0.02, tReflect: 0.5, tFrozen: 20, tRevive: 0.1, tBack: 5, priceW: 0.0005, pr: [0, 2, 3, 1],
+  fam: {},
+};
 export interface Snapshot { turn: number; side: number; hp: number[][]; max: number[][]; spam: number[]; pts: number[][]; alive: boolean[][] }
 export interface MatchResult { winner: 0 | 1 | -1; turns: number; bought: [string[], string[]]; terrain: number; first: number }
 
@@ -64,10 +98,20 @@ const toxVal = (comp: Compiled, fam: Fam, r: number, el: number): number => {
   return f?.vals[r] ?? 1;
 };
 const avgOf = (x: CAction) => (x.min + x.max) / 2;
+const ACT_FR: Record<string, string> = {
+  damage: "dégâts", healTarget: "soin", healCaster: "soin", AddAllPlayerAttack: "éléments", AddCooldown: "recharge",
+  AddCardResistance: "résistance", AddOppCardResistance: "résistance", AddSpamton: "Spamtons",
+};
+const actLabel = (x: CAction) => `${ACT_FR[x.effect] ?? x.effect}${x.min || x.max ? ` ${x.min === x.max ? x.min : `${x.min}-${x.max}`}` : ""}${x.el >= 0 ? ` ${EL_FR[x.el]}` : ""}`;
 const isDmgEffect = (e: string) => e === "damage" || e === "DamageAll" || e === "DamageCasterHP" || e === "DamageWithCardElement" || e === "DamageOnShield2";
 
 export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng, opts: MatchOpts = {}): MatchResult {
   const log = opts.log;
+  const AI: [AiParams, AiParams] = [opts.ai?.[0] ?? DEFAULT_AI, opts.ai?.[1] ?? DEFAULT_AI];
+  const decide = (d: Decision): number => {
+    const r = opts.choose!(d);
+    return r >= 0 && r < d.n ? r : d.def;
+  };
   const first: 0 | 1 = opts.first ?? (rng() < 0.5 ? 0 : 1);
   const terrain = opts.terrain ?? Math.floor(rng() * 6);
   const ri = (a: number, b: number) => (a >= b ? a : a + Math.floor(rng() * (b - a + 1)));
@@ -79,6 +123,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   }));
   sides[0].pts[terrain] += 5;
   sides[1].pts[terrain] += 5;
+  if (opts.giftPts) sides[opts.giftPts.side].pts[opts.giftPts.el] += opts.giftPts.v;
 
   /* ----- outils ----- */
   const tx = (c: RCard, fam: Fam): Tox | undefined => {
@@ -94,7 +139,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     for (const c of s.cards) if (c.alive) for (const t of c.tox) if (t.fam === "berserk") b += t.v;
     return b / 100;
   };
-  const say = (m: string) => { if (log) log.push(m); };
+  const say = (m: string) => { log!.push(m); };
   const nm = (c: RCard) => `${c.side === 0 ? "A" : "B"}·${c.d.name}`;
   const addPts = (s: RSide, o: RSide, el: number, v: number, mimic = true) => {
     if (el < 0 || el > 6 || v === 0) return;
@@ -119,7 +164,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     t.frozen = false;
     const v = t.frozenVal;
     t.frozenVal = 0;
-    if (v > 0) { say(`  ❄ la glace de ${nm(t)} se brise (−${v})`); rawDamage(t, v, src); }
+    if (v > 0) { if (log) say(`  ❄ la glace de ${nm(t)} se brise (−${v})`); rawDamage(t, v, src); }
   };
   const freeze = (t: RCard, v: number, src: RCard) => {
     if (!t.alive || (t.side !== src.side && immune(t))) return;
@@ -159,7 +204,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const d = pick(sameRarity(c.d.rarity, c.d.num));
     if (!d) return;
     const bought = c.tox.filter((t) => !c.d.skills.some((s) => s.fam === t.fam && s.r === t.r));
-    say(`  ✧ ${nm(c)} se transforme en ${d.name}`);
+    if (log) say(`  ✧ ${nm(c)} se transforme en ${d.name}`);
     setCardData(c, d, bought);
     c.max = d.hp;
     c.hp = Math.max(1, (d.hp * hpPct) / 100);
@@ -273,21 +318,21 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       // Plume de Phénix : une fois par partie, le passif Phénix est récupéré après usage
       if (tgt.tk === "TPlumePhoenix" && !tgt.once.has("plume")) tgt.once.add("plume");
       else { tgt.phxUsed = true; tgt.tox = tgt.tox.filter((t) => t !== phx); }
-      say(`✦ ${nm(tgt)} renaît (Phénix)`);
+      if (log) say(`✦ ${nm(tgt)} renaît (Phénix)`);
       return;
     }
     if (tgt.resurrect && !tgt.revived) {
       tgt.revived = true;
       if (tgt.resurrectMeta) metamorph(tgt, tgt.resurrect);
       else tgt.hp = (tgt.max * tgt.resurrect) / 100;
-      say(`✦ ${nm(tgt)} revient à la vie`);
+      if (log) say(`✦ ${nm(tgt)} revient à la vie`);
       return;
     }
     tgt.alive = false;
     tgt.hp = 0;
     tgt.frozen = false;
     S.dead.push(tgt);
-    say(`✖ ${nm(tgt)} est détruite`);
+    if (log) say(`✖ ${nm(tgt)} est détruite`);
     S.spam += 50;
     if (tgt.tk === "Heritage") S.spam += tgt.tv;
     if (tgt.tk === "Dernier souffle") for (const o of S.cards) changeCd(o, -1, false);
@@ -308,7 +353,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const bomb = tx(tgt, "bomba");
     if (bomb) {
       const t = pick(alive(E));
-      if (t) { say(`💣 Bomba sur ${nm(t)}`); rawDamage(t, bomb.v, tgt); }
+      if (t) { if (log) say(`💣 Bomba sur ${nm(t)}`); rawDamage(t, bomb.v, tgt); }
     }
     if (tx(tgt, "revenge")) {
       for (const a of tgt.abs) {
@@ -366,7 +411,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     let shield = 1;
     const sh = tx(tgt, "shield");
     if (sh) {
-      if (brut) { tgt.tox = tgt.tox.filter((t) => t !== sh); say(`  ${nm(c)} détruit le Bouclier de ${nm(tgt)}`); }
+      if (brut) { tgt.tox = tgt.tox.filter((t) => t !== sh); if (log) say(`  ${nm(c)} détruit le Bouclier de ${nm(tgt)}`); }
       else if (!tgt.shieldUsed) { tgt.shieldUsed = true; shield = 1 - sh.v / 100; }
     }
     if (brut && E.taunt === tgt) E.taunt = null; // Brut détruit les provocations des ennemis ciblés
@@ -380,7 +425,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const dealt = rawDamage(tgt, dmg, c);
     if (dealt <= 0) return 0;
     dmg = dealt;
-    say(`  ${nm(c)} → ${nm(tgt)} : −${dealt}${crit ? " (CRIT)" : ""}`);
+    if (log) say(`  ${nm(c)} → ${nm(tgt)} : −${dealt}${crit ? " (CRIT)" : ""}`);
     const enemyHit = tgt.side !== c.side;
     const imm = enemyHit && immune(tgt);
     // effets de l'attaquant
@@ -427,23 +472,33 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (!brut && tt) return tt;
     const visible = cand.filter((x) => !(tx(x, "camo") && !x.revealed));
     if (visible.length) cand = visible;
-    let best: RCard = cand[0];
+    const P = AI[c.side];
+    let bi = 0;
     let bestS = -1e9;
     const dmg = acts.filter((x) => isDmgEffect(x.effect));
     const el = dmg[0]?.el ?? -1;
     const pts = el >= 0 ? S.pts[el] : 0;
     const avg = dmg.reduce((p, q) => p + avgOf(q), 0) * (1 + 0.1 * pts) * (1 + berserk(S));
-    for (const x of cand) {
+    for (let k = 0; k < cand.length; k++) {
+      const x = cand[k];
       const r = el >= 0 && el < 6 && !brut ? 1 - effRes(x, el) / 100 : 1;
       const d = avg * r * (tx(x, "shield") && !x.shieldUsed && !brut ? 1 - (tx(x, "shield")!.v / 100) : 1);
-      let sc = (x.d.threat + 40) * Math.min(1, d / Math.max(1, x.hp)) + d * 0.02;
-      if (d >= x.hp) sc += 1000 + x.d.threat;
-      if (tx(x, "reflect")) sc -= d * (tx(x, "reflect")!.v / 100) * 0.5;
-      if (x.frozen) sc -= 20;
+      // une carte qui reviendra (Phénix, Transition, Métamorphe…) a en réalité plus de PV à abattre
+      const phx = !x.phxUsed ? tx(x, "phoenix") : undefined;
+      const back = phx ? phx.v / 100 : x.resurrect && !x.revived ? x.resurrect / 100 : 0;
+      const hpEff = x.hp + back * x.max * P.tBack;
+      let sc = (x.d.threat + P.tThreat) * Math.min(1, d / Math.max(1, hpEff)) + d * P.tDmg;
+      if (d >= x.hp) sc += (P.tKill + x.d.threat) * (back ? P.tRevive : 1);
+      if (tx(x, "reflect")) sc -= d * (tx(x, "reflect")!.v / 100) * P.tReflect;
+      if (x.frozen) sc -= P.tFrozen;
       sc += rng() * 0.5;
-      if (sc > bestS) { bestS = sc; best = x; }
+      if (sc > bestS) { bestS = sc; bi = k; }
     }
-    return best;
+    if (opts.choose && cand.length > 1) {
+      const cc = cand;
+      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, label: (i) => `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
+    }
+    return cand[bi];
   };
   const bestAlly = (S: RSide, pred: (x: RCard) => boolean = () => true): RCard | null => {
     let b: RCard | null = null, bs = -1;
@@ -488,7 +543,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const roll = (x: CAction) => (opt ? x.max : ri(x.min, x.max));
     // Précision : probabilité de réussite des effets de la compétence (pas seulement du coup)
     const accOk = rng() * 100 < a.acc + c.accB;
-    say(`${nm(c)} lance « ${a.name} »${accOk ? "" : " (raté)"}`);
+    if (log) say(`${nm(c)} lance « ${a.name} »${accOk ? "" : " (raté)"}`);
     if (!free) {
       for (const k of a.cost) S.pts[k.el] -= k.amt;
       if (a.hpCost) c.hp -= a.hpCost;
@@ -501,6 +556,10 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         const v = optionValue(S, E, c, a, o.map((i) => a.actions[i]), a.optFreeze[oi]);
         if (v > bv) { bv = v; bi = oi; }
       });
+      if (opts.choose && a.options.length > 1) {
+        const ops = a.options;
+        bi = decide({ kind: "option", side: c.side as 0 | 1, turn: S.turn, n: ops.length, def: bi, label: (i) => `${a.name} : ${ops[i].map((j) => actLabel(a.actions[j])).join(" + ")}` });
+      }
       acts = a.options[bi].map((i) => a.actions[i]);
       doFreeze = !!a.optFreeze[bi];
     }
@@ -625,7 +684,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
             break;
           }
           const healed = healCard(t, amt, c);
-          say(`  ${nm(c)} soigne ${nm(t)} +${Math.floor(healed)}`);
+          if (log) say(`  ${nm(c)} soigne ${nm(t)} +${Math.floor(healed)}`);
           const aoe = tx(c, "aoe");
           if (aoe) for (const di of [-1, 1]) { const n = S.cards[t.i + di]; if (n && n.alive) healCard(n, (amt * aoe.v) / 100, c); }
           const fr = tx(c, "freeze"); if (fr && t !== c) freeze(t, fr.v, c); // « les dégâts et les soins de cette carte gèlent leur cible »
@@ -717,14 +776,14 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
           if (t && !t.alive) {
             S.dead.pop();
             t.alive = true; t.hp = (t.max * (x.min || 50)) / 100; t.poison = [];
-            say(`✦ ${nm(t)} est ressuscitée`);
+            if (log) say(`✦ ${nm(t)} est ressuscitée`);
           }
           break;
         }
         case "HealCasterWithOppHPMAX": {
           if (a.absorbAlly) break;
           const t = alive(E).filter((e) => !immune(e)).sort((p, q) => q.max - p.max)[0];
-          if (t) { c.max += t.max; say(`  ${nm(c)} absorbe ${nm(t)}`); kill(t, c); }
+          if (t) { c.max += t.max; if (log) say(`  ${nm(c)} absorbe ${nm(t)}`); kill(t, c); }
           break;
         }
         case "AddPImmunity": {
@@ -857,9 +916,10 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   };
   const shop = (S: RSide, E: RSide, s: number) => {
     const t = S.turn;
+    const P = AI[s];
     let rerolls = 0;
     for (let guard = 0; guard < 6; guard++) {
-      let best: { f: ToxFamily; r: number; c: RCard; u: number; price: number } | null = null;
+      const buys: { f: ToxFamily; r: number; c: RCard; u: number; price: number }[] = [];
       const free = S.cards.filter((c) => c.alive && c.abs.length + c.tox.length < SLOTS);
       for (let k = 0; k < 3; k++) {
         const r = rollRarity(S.luck);
@@ -869,30 +929,61 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         const price = f.prices[rr];
         if (price === null || S.spam < price) continue;
         for (const c of free) {
-          const u = utility(S, E, c, f, rr, t);
-          if (!best || u > best.u) best = { f, r: rr, c, u, price };
+          let u = utility(S, E, c, f, rr, t);
+          if (u > 0) u *= P.fam[f.fam] ?? 1;
+          u -= P.priceW * price;
+          buys.push({ f, r: rr, c, u, price });
         }
       }
-      const thr = 0.03 * Math.max(0.25, 1 - t / 24);
-      if (best && best.u >= thr) {
+      buys.sort((x, y) => y.u - x.u);
+      const cands = buys.slice(0, 4);
+      const thr = P.shopThr * Math.max(0.25, 1 - t / P.shopDecay);
+      const cost = rerolls === 0 && S.casino ? 0 : 10 + 5 * rerolls;
+      const canReroll = rerolls < 3 && S.spam >= cost;
+      const nOpt = cands.length + (canReroll ? 1 : 0) + 1;
+      const iReroll = canReroll ? cands.length : -1;
+      let ch = cands.length && cands[0].u >= thr ? 0
+        : canReroll && rerolls < P.rerollMax && t < P.rerollTurn && S.spam >= cost + P.rerollReserve ? iReroll : nOpt - 1;
+      if (opts.choose && nOpt > 1) {
+        const cc = cands;
+        ch = decide({
+          kind: "shop", side: s as 0 | 1, turn: t, n: nOpt, def: ch,
+          label: (i) => i < cc.length ? `Acheter ${cc[i].f.name} (${["C", "R", "E", "L"][cc[i].r]}, ${cc[i].price}) pour ${cc[i].c.d.name}` : i === iReroll ? `Relancer la boutique (${cost})` : "Passer (+10 Spamtons)",
+        });
+      }
+      if (ch < cands.length) {
+        const best = cands[ch];
         S.spam -= best.price;
         if (S.petit && !S.boughtOnce) S.spam += best.price;
         S.boughtOnce = true;
-        const tox: Tox = { fam: best.f.fam, r: best.r, v: best.f.vals[best.r] as number, el: best.f.el ?? -1 };
-        if (best.c.frozen) breakIce(best.c, null); // « un nouveau Tox brise la glace »
-        if (tox.fam === "inversion") best.c.inv = true;
-        if (tox.fam === "metamorph") metamorph(best.c, (best.c.hp / best.c.max) * 100);
-        else if (tox.fam === "mystery") grantMystery(best.c);
-        else best.c.tox.push(tox);
-        S.bought.push(`${best.f.fam}${best.f.el !== undefined ? ":" + best.f.el : ""}:${best.r}`);
-        say(`🛒 ${s === 0 ? "A" : "B"} achète ${best.f.name} (${["C", "R", "E", "L"][best.r]}) pour ${best.c.d.name} (${best.price})`);
+        giveTox(S, best.c, best.f, best.r);
+        if (log) say(`🛒 ${s === 0 ? "A" : "B"} achète ${best.f.name} (${["C", "R", "E", "L"][best.r]}) pour ${best.c.d.name} (${best.price})`);
         return;
       }
-      const cost = rerolls === 0 && S.casino ? 0 : 10 + 5 * rerolls;
-      if (rerolls < 2 && t < 14 && S.spam >= cost + 20) { S.spam -= cost; rerolls++; continue; }
+      if (ch === iReroll) { S.spam -= cost; rerolls++; if (log) say(`🔄 ${s === 0 ? "A" : "B"} relance la boutique (${cost})`); continue; }
       S.spam += 10;
       return;
     }
+  };
+  const giveTox = (S: RSide, c: RCard, f: ToxFamily, r: number) => {
+    const tox: Tox = { fam: f.fam, r, v: f.vals[r] as number, el: f.el ?? -1 };
+    if (c.frozen) breakIce(c, null); // « un nouveau Tox brise la glace »
+    if (tox.fam === "inversion") c.inv = true;
+    if (tox.fam === "metamorph") metamorph(c, (c.hp / c.max) * 100);
+    else if (tox.fam === "mystery") grantMystery(c);
+    else c.tox.push(tox);
+    S.bought.push(`${f.fam}${f.el !== undefined ? ":" + f.el : ""}:${r}`);
+  };
+  /** Expérience d'impact : Tox offert à la meilleure carte (selon l'IA) au tour indiqué. */
+  const gift = (S: RSide, E: RSide, s: number) => {
+    const g = opts.giftTox;
+    if (!g || g.side !== s || S.turn !== g.turn) return;
+    const f = comp.tox.find((x) => x.fam === g.fam && (g.fam !== "heart" || x.el === g.el));
+    if (!f || f.vals[g.r] === null) return;
+    let best: RCard | null = null, bu = -1e9;
+    for (const c of S.cards) if (c.alive && c.abs.length + c.tox.length < SLOTS) { const u = utility(S, E, c, f, g.r, S.turn); if (u > bu) { bu = u; best = c; } }
+    if (!best) for (const c of S.cards) if (c.alive) { best = c; break; }
+    if (best) giveTox(S, best, f, g.r);
   };
 
   /* ----- boucle de jeu ----- */
@@ -912,7 +1003,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const S = sides[s], E = sides[1 - s];
     S.turn++;
     const t = S.turn;
-    say(`— Tour ${t} · joueur ${s === 0 ? "A" : "B"} —`);
+    if (log) say(`— Tour ${t} · joueur ${s === 0 ? "A" : "B"} —`);
     let lucky = 0;
     for (const c of S.cards) if (c.alive) { const l = tx(c, "lucky"); if (l) lucky += l.v; c.revealed = false; }
     for (const c of E.cards) c.shieldUsed = false; // Bouclier : « au début de chaque tour ennemi »
@@ -975,23 +1066,36 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       }
     }
     if (!anyAlive(S)) return;
+    gift(S, E, s);
     if (t % 2 === 0) shop(S, E, s);
-    for (let iter = 0; iter < 7; iter++) {
-      const ready: { c: RCard; ai: number; pr: number }[] = [];
+    // capacités : l'IA choisit l'ordre (par défaut : priorité, chaque capacité une fois avant les relances par Écho)
+    const nc = new Array<number>(32).fill(0);
+    const P = AI[s];
+    const muted = opts.mute && opts.mute.side === s ? opts.mute : null;
+    for (let guard = 0; guard < 60; guard++) {
+      if (!anyAlive(E)) return;
+      const ready: { c: RCard; ai: number; pr: number; n: number }[] = [];
       for (const c of S.cards) {
         if (!c.alive || c.frozen) continue;
-        c.abs.forEach((a, ai) => { if (canCast(S, E, c, ai)) ready.push({ c, ai, pr: a.prio }); });
+        for (let ai = 0; ai < c.abs.length; ai++) {
+          const n = nc[c.i * 8 + ai];
+          if (n >= 7 || (muted && muted.card === c.i && muted.ab === ai)) continue;
+          if (canCast(S, E, c, ai)) ready.push({ c, ai, pr: P.pr[c.abs[ai].prio] ?? c.abs[ai].prio, n });
+        }
       }
       if (!ready.length) break;
-      ready.sort((x, y) => x.pr - y.pr);
-      let did = false;
-      for (const r of ready) {
-        if (!anyAlive(E)) return;
-        if (!r.c.alive || r.c.frozen || !canCast(S, E, r.c, r.ai)) continue;
-        castAbility(S, E, r.c, r.ai);
-        did = true;
+      let bi = 0;
+      for (let k = 1; k < ready.length; k++) {
+        const x = ready[k], b = ready[bi];
+        if (x.n < b.n || (x.n === b.n && x.pr < b.pr)) bi = k;
       }
-      if (!did) break;
+      if (opts.choose && ready.length > 1) {
+        const rr = ready;
+        bi = decide({ kind: "cast", side: s as 0 | 1, turn: t, n: rr.length, def: bi, label: (i) => `${rr[i].c.d.name} : ${rr[i].c.abs[rr[i].ai].name}` });
+      }
+      const r = ready[bi];
+      nc[r.c.i * 8 + r.ai]++;
+      castAbility(S, E, r.c, r.ai);
     }
     for (const c of S.cards) {
       if (!c.alive) continue;
@@ -1014,7 +1118,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   const a0 = anyAlive(sides[0]);
   const a1 = anyAlive(sides[1]);
   const winner: 0 | 1 | -1 = a0 && !a1 ? 0 : a1 && !a0 ? 1 : -1;
-  say(winner === -1 ? "Égalité" : `Victoire du joueur ${winner === 0 ? "A" : "B"}`);
+  if (log) say(winner === -1 ? "Égalité" : `Victoire du joueur ${winner === 0 ? "A" : "B"}`);
   return { winner, turns, bought: [sides[0].bought, sides[1].bought], terrain, first };
 }
 

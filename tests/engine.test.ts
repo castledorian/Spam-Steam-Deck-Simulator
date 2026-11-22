@@ -118,3 +118,21 @@ test("le premier joueur n'a pas d'avantage massif (alternance équitable)", () =
   const share = w0 / n;
   assert.ok(share > 0.4 && share < 0.65, `le premier joueur gagne ${(share * 100).toFixed(1)} %`);
 });
+
+test("IA experte : la position est rejouée à l'identique avant chaque option testée", async () => {
+  const { makeTape, replayChooser, searchMatch } = await import("../src/sim/search");
+  const a = deck(["Moxilys", "Esprit Feu", "Esprit Eau", "Esprit Terre"]);
+  const b = deck(FILLER);
+  // une partie avec des choix imposés, puis rejouée depuis la bande enregistrée : même déroulé
+  const hist: number[] = [];
+  const t = makeTape(5);
+  const l1: string[] = [];
+  playMatch(comp, [a, b], t.rng, { first: 0, log: l1, choose: (d) => { const c = (d.def + 1) % d.n; hist.push(c); return c; } });
+  const l2: string[] = [];
+  playMatch(comp, [a, b], makeTape(123, t.vals, t.vals.length, false).rng, { first: 0, log: l2, choose: replayChooser(hist) });
+  assert.deepEqual(l2, l1);
+  // une partie analysée se termine et chaque décision a une estimation par option
+  const r = searchMatch(comp, [a, b], 9, { rollouts: 4, sides: [true, true] }, { first: 1 });
+  assert.ok(r.result.turns > 0 && r.decisions.length > 0);
+  for (const d of r.decisions) assert.ok(d.chosen >= 0 && d.chosen < d.labels.length && !Number.isNaN(d.wr[d.chosen]));
+});

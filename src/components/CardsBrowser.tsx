@@ -8,7 +8,11 @@ import { img, useSpam } from "./SpamProvider";
 const RAR_ORDER: Record<string, number> = { common: 1, rare: 2, epic: 3, legendary: 4, divine: 5 };
 
 export function CardModal({ card, onClose }: { card: RawCard; onClose: () => void }) {
-  const { ds, owned, setOwned, collection, setLevel } = useSpam();
+  const { ds, owned, setOwned, collection, setLevel, lab } = useSpam();
+  const imp = lab?.impact.cards.find((x) => x.num === card.number);
+  const impRank = imp ? lab!.impact.cards.indexOf(imp) + 1 : 0;
+  const abImp = (i: number) => lab?.impact.abilities.find((x) => x.num === card.number && x.ab === i);
+  const fmtPts = (d: number) => `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1).replace(".", ",")} pts`;
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -56,6 +60,11 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
               </label>
             )}
           </div>
+          {imp && (
+            <p className="rounded-lg bg-black/30 p-2 text-xs text-white/70">
+              Valeur simulée dans la méta : <b className="text-white">{(imp.wr * 100).toFixed(1).replace(".", ",")} %</b> de victoires en remplacement d&apos;une carte des meilleurs decks · rang <b className="text-white">{impRank}</b>/{lab!.impact.cards.length} · meilleur talent : <b className="text-[#ff9ad5]">{card.talents.find((t) => t.slot === imp.best)?.name ?? "aucun"}</b>
+            </p>
+          )}
           <div className="grid grid-cols-3 gap-2 text-center">
             <Stat l="PV" v={card.hp} />
             <Stat l="Spamtons / tour" v={card.spamton} />
@@ -75,8 +84,9 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
           <div>
             <h3 className="mb-1 font-semibold text-white">Capacités</h3>
             <ul className="space-y-1.5">
-              {card.abilities.map((a) => (
+              {card.abilities.map((a, ai) => (
                 <li key={a.id} className="rounded-lg bg-black/30 p-2">
+                  {abImp(ai) && <span className="float-right ml-2 rounded-full bg-white/8 px-2 text-[11px] text-white/60" title="Perte de taux de victoire si la capacité n'est jamais utilisée">apport {fmtPts(abImp(ai)!.d)}</span>}
                   <div className="flex items-center justify-between"><b>{a.name}</b><span className="text-xs text-white/60">recharge {a.cooldown} · précision {a.precision}% · crit {a.critChance}% ×{a.critMultiplier}{a.cooldownResetChance ? ` · écho ${a.cooldownResetChance}%` : ""}{a.uses ? ` · ${a.uses} usage(s)` : ""}</span></div>
                   <p className="whitespace-pre-line text-white/75">{a.effect}</p>
                 </li>
@@ -101,7 +111,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
             <h3 className="mb-1 font-semibold text-white">Talents (cachés, débloqués par doublons)</h3>
             <ul className="space-y-1.5">
               {card.talents.map((t) => (
-                <li key={t.slot} className="rounded-lg bg-black/30 p-2"><b>{t.slot}. {t.name}</b><p className="text-white/75">{t.effect}</p></li>
+                <li key={t.slot} className="rounded-lg bg-black/30 p-2">{imp?.tal.find((x) => x.slot === t.slot) && <span className={`float-right ml-2 rounded-full px-2 text-[11px] ${imp.best === t.slot ? "bg-[#ff9ad5]/20 text-[#ff9ad5]" : "bg-white/8 text-white/60"}`}>{(imp.tal.find((x) => x.slot === t.slot)!.wr * 100).toFixed(1).replace(".", ",")} %</span>}<b>{t.slot}. {t.name}</b><p className="text-white/75">{t.effect}</p></li>
               ))}
             </ul>
           </div>

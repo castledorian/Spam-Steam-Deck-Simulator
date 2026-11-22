@@ -1,0 +1,78 @@
+# Laboratoire : calculs lourds hors du navigateur (méta de référence, classement « IA experte »,
+# impact des Tox / cartes / talents / capacités / points d'élément) → public/data/lab.json.
+# - après chaque publication du site : ne recalcule que si le patch (ou la méthode) a changé ;
+# - chaque lundi, et à la demande (onglet Actions → « Laboratoire » → Run workflow, case « forcer »).
+# Une fois lab.json enregistré, le site est republié automatiquement.
+name: Laboratoire
+
+on:
+  workflow_run:
+    workflows: ["Publier le site"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "41 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Recalculer même si les résultats sont à jour"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: laboratoire
+  cancel-in-progress: false
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Faut-il recalculer ?
+        id: check
+        run: |
+          LAB=$(grep -oP 'LAB_VERSION = \K[0-9]+' scripts/lab/run.mts)
+          NEED=$(node -e '
+            const fs = require("fs");
+            const ds = JSON.parse(fs.readFileSync("public/data/dataset.json", "utf8"));
+            let lab = null; try { lab = JSON.parse(fs.readFileSync("public/data/lab.json", "utf8")); } catch {}
+            console.log(!lab || lab.version !== ds.version || lab.lab !== '"$LAB"' || lab.quick ? "true" : "false");
+          ')
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then NEED=true; fi
+          if [ "${{ github.event_name }}" = "schedule" ]; then NEED=true; fi
+          echo "need=$NEED" >> "$GITHUB_OUTPUT"
+          echo "Recalcul nécessaire : $NEED"
+
+      - name: Installer les dépendances
+        if: steps.check.outputs.need == 'true'
+        run: npm install --no-audit --no-fund
+
+      - name: Calculer (méta, IA experte, impact)
+        if: steps.check.outputs.need == 'true'
+        run: npx tsx scripts/lab/run.mts --force
+
+      - name: Enregistrer et republier
+        if: steps.check.outputs.need == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add public/data/lab.json
+          if git diff --cached --quiet; then echo "Aucun changement."; exit 0; fi
+          git config user.name "spamlab-bot"
+          git config user.email "spamlab-bot@users.noreply.github.com"
+          VER=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("public/data/lab.json","utf8")).version)')
+          git commit -m "Laboratoire : méta, IA experte et impact du patch $VER"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          gh workflow run publier.yml --ref main

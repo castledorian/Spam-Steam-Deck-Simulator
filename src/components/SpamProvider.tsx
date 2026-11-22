@@ -3,6 +3,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { RawCard, RawDataset } from "@/sim/compile";
 import { buildMeta, MetaPayload, Precision, ProgressCb, SimPool } from "@/sim/pool";
+import type { LabPayload } from "@/sim/lab";
 
 export const DATA_BASE = "https://spamgame.com/data/";
 /** Préfixe du site (GitHub Pages sert le projet sous /<nom-du-dépôt>). */
@@ -53,6 +54,12 @@ interface Ctx {
   refresh: () => Promise<void>; syncing: boolean;
   getPool: () => Promise<SimPool>;
   meta: MetaPayload | null; metaBusy: boolean; ensureMeta: (precision: Precision, cb: ProgressCb, force?: boolean) => Promise<MetaPayload>;
+  /** Résultats du laboratoire (méta de référence, IA experte, impact), s'ils correspondent au patch affiché. */
+  lab: LabPayload | null;
+  /** Origine de la méta affichée : calculée par le site (serveur) ou dans ce navigateur. */
+  metaSource: "lab" | "local" | null;
+  /** Oublie la méta calculée dans ce navigateur et revient à celle du laboratoire. */
+  resetToLabMeta: () => void;
 }
 
 const C = createContext<Ctx | null>(null);
@@ -65,7 +72,7 @@ export const useSpam = () => {
 const KEY = "spamlab.collection.v1";
 const KEY_MODE = "spamlab.talents.v1";
 /** Préfixe de la méta mémorisée : changé à chaque évolution du moteur pour ne pas réutiliser d'anciens résultats. */
-const META_KEY = "spamlab.meta.v6.";
+const META_KEY = "spamlab.meta.v7.";
 
 export function SpamProvider({ children }: { children: ReactNode }) {
   const [ds, setDs] = useState<RawDataset | null>(null);
@@ -78,6 +85,8 @@ export function SpamProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [meta, setMeta] = useState<MetaPayload | null>(null);
   const [metaBusy, setMetaBusy] = useState(false);
+  const [labAll, setLabAll] = useState<LabPayload | null>(null);
+  const [metaSource, setMetaSource] = useState<"lab" | "local" | null>(null);
   const poolRef = useRef<Promise<SimPool> | null>(null);
   const dsRef = useRef<RawDataset | null>(null);
 
@@ -115,6 +124,10 @@ export function SpamProvider({ children }: { children: ReactNode }) {
         return j.data;
       });
       dsRef.current = j.data;
+      try {
+        const rlab = await fetch(`${SITE_BASE}/data/lab.json`, { cache: "no-cache" });
+        if (rlab.ok) setLabAll((await rlab.json()) as LabPayload);
+      } catch { /* laboratoire pas encore calculé */ }
       setLayout(j.layout);
       setInfo(j.status);
       setError(null);
@@ -198,19 +211,19 @@ export function SpamProvider({ children }: { children: ReactNode }) {
   const owned = useCallback((n: number) => n in collection, [collection]);
   const lvOf = useCallback((n: number) => (talentMode === "all" ? 3 : collection[n] ?? 0), [talentMode, collection]);
 
-  // méta locale
+  const lab = labAll && ds && labAll.version === ds.version ? labAll : null;
+  // méta : celle du laboratoire (bien plus de parties) sinon celle calculée dans ce navigateur
   useEffect(() => {
     if (!ds) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        // Méta calculée dans ce navigateur, mémorisée par version de jeu.
-        const local = localStorage.getItem(META_KEY + ds.version);
-        if (!cancelled) setMeta(local ? (JSON.parse(local) as MetaPayload) : null);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [ds]);
+    let local: MetaPayload | null = null;
+    try {
+      const s = localStorage.getItem(META_KEY + ds.version);
+      local = s ? (JSON.parse(s) as MetaPayload) : null;
+    } catch { /* ignore */ }
+    if (local && (!lab || new Date(local.at) > new Date(lab.at))) { setMeta(local); setMetaSource("local"); }
+    else if (lab) { setMeta(lab.meta); setMetaSource("lab"); }
+    else { setMeta(null); setMetaSource(null); }
+  }, [ds, lab]);
 
   const ensureMeta = useCallback(async (precision: Precision, cb: ProgressCb, force = false): Promise<MetaPayload> => {
     const d = dsRef.current;
@@ -221,6 +234,7 @@ export function SpamProvider({ children }: { children: ReactNode }) {
       const pool = await getPool();
       const m = await buildMeta(pool, d.cards.map((c) => c.number), d.version, precision, cb);
       setMeta(m);
+      setMetaSource("local");
       try { localStorage.setItem(META_KEY + d.version, JSON.stringify(m)); } catch { /* ignore */ }
       return m;
     } finally {
@@ -228,9 +242,15 @@ export function SpamProvider({ children }: { children: ReactNode }) {
     }
   }, [meta, getPool]);
 
+  const resetToLabMeta = useCallback(() => {
+    if (!lab || !ds) return;
+    try { localStorage.removeItem(META_KEY + ds.version); } catch { /* ignore */ }
+    setMeta(lab.meta); setMetaSource("lab");
+  }, [lab, ds]);
+
   const value: Ctx = {
     ds, layout, info, loading, error, cards, byNum, collection, owned, setOwned, setLevel, setMany, clearCollection,
-    talentMode, setTalentMode, lvOf, refresh, syncing, getPool, meta, metaBusy, ensureMeta,
+    talentMode, setTalentMode, lvOf, refresh, syncing, getPool, meta, metaBusy, ensureMeta, lab, metaSource, resetToLabMeta,
   };
   return <C.Provider value={value}>{children}</C.Provider>;
 }
