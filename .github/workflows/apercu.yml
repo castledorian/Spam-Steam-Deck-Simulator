@@ -31,5 +31,5 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Pages, analyse de partie et simulation
         env:
-          MINIATURES: "1"
+          MINIATURES: "plateau"
         run: node scripts/apercu.mjs /tmp/apercu

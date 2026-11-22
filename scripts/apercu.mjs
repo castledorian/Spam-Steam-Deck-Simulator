@@ -26,6 +26,8 @@ const VIEWS = { telephone: { width: 390, height: 844, isMobile: true, hasTouch: 
 /** Miniatures JPEG écrites dans le journal (base64), lisibles sans télécharger d'artefact. */
 const thumbs = [];
 const thumb = async (page, name, full = false) => {
+  const only = process.env.MINIATURES;
+  if (!only || (only !== "1" && !name.includes(only))) return; // MINIATURES=plateau : seulement les captures dont le nom contient « plateau »
   const buf = await page.screenshot({ type: "jpeg", quality: 50, fullPage: full });
   thumbs.push(`=====IMG ${name}=====\n${buf.toString("base64")}\n=====FIN=====`);
 };
