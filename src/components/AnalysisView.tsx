@@ -8,7 +8,7 @@ import { DeckCards, DeckTalents, pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
 
 export interface Pick { cards: number[]; tal?: number[] }
-const KIND: Record<DecisionRec["kind"], string> = { cast: "Ordre des capacités", target: "Cible", shop: "Boutique", option: "Choix" };
+const KIND: Record<DecisionRec["kind"], string> = { cast: "Ordre des capacités", target: "Cible", shop: "Boutique", option: "Choix", turn: "Tour" };
 const DEPTH = [
   { r: 16, l: "Rapide", info: "≈ 20-40 s" },
   { r: 40, l: "Normale", info: "≈ 1-2 min" },
