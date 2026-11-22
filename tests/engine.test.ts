@@ -138,3 +138,40 @@ test("IA experte : la position est rejouée à l'identique avant chaque option t
   assert.ok(r.result.turns > 0 && r.decisions.length > 0);
   for (const d of r.decisions) assert.ok(d.chosen >= 0 && d.chosen < d.labels.length && !Number.isNaN(d.wr[d.chosen]));
 });
+
+test("Danse des plumes (Chouette Polychrome) touche toutes les cartes du terrain, alliées comprises, et les blesse", () => {
+  const ab = comp.byNum.get(num("Chouette Polychrome"))!.abilities.find((a) => a.name === "Danse des plumes")!;
+  assert.ok(ab.randField);
+  const hitsAlly = { n: 0 }, hitsEnemy = { n: 0 };
+  for (let seed = 1; seed <= 40; seed++) {
+    const log: string[] = [];
+    // talent 0 : pas de métamorphose au départ, on garde la Chouette
+    playMatch(comp, [deck(["Chouette Polychrome", "Esprit Feu", "Esprit Eau", "Esprit Terre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(seed), { log, ai: [NO_SHOP, NO_SHOP] });
+    let inDance = false;
+    for (const l of log) {
+      if (!l.startsWith("  ")) inDance = l.includes("A·Chouette Polychrome lance « Danse des plumes »");
+      if (!inDance) continue;
+      const m = l.match(/A·Chouette Polychrome → ([AB])·[^:]+ : −(\d+)/);
+      if (m) { if (m[1] === "A") { hitsAlly.n++; assert.ok(+m[2] > 0); } else hitsEnemy.n++; }
+    }
+  }
+  assert.ok(hitsAlly.n > 10, `alliés touchés : ${hitsAlly.n}`);
+  assert.ok(hitsEnemy.n > 10, `ennemis touchés : ${hitsEnemy.n}`);
+});
+
+test("Malédiction aquatique (Zombie Floral) : 2 × Disparition, un passif retiré à chaque application et par carte adverse", () => {
+  const ab = comp.byNum.get(num("Zombie Floral"))!.abilities[0];
+  assert.equal(ab.textVanish, 2);
+  assert.ok(ab.aoe);
+  let removed = 0, perCard = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    const log: string[] = [];
+    // Hippocampe Nimbé : Reset + Brut ; Frost & Glacier : Gel + Érosion ; Naissance d'Aldrin : Phénix + Cimetière ; Shado : Soin + AoE
+    playMatch(comp, [deck(["Zombie Floral", "Esprit Feu", "Esprit Eau", "Esprit Terre"], [0, 0, 0, 0]), deck(["Hippocampe Nimbé", "Frost & Glacier", "Naissance d'Aldrin", "Shado"], [0, 0, 0, 0])], mulberry32(seed), { log, ai: [NO_SHOP, NO_SHOP] });
+    const per = new Map<string, number>();
+    log.forEach((l) => { const m = l.match(/Disparition : (B·[^ ]+(?: [^«]+?)?) perd/); if (m) { removed++; per.set(m[1].trim(), (per.get(m[1].trim()) ?? 0) + 1); } });
+    for (const v of per.values()) perCard = Math.max(perCard, v);
+  }
+  assert.ok(removed > 0);
+  assert.ok(perCard >= 2, "une même carte doit perdre 2 passifs");
+});

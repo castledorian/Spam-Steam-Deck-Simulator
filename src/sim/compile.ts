@@ -136,7 +136,7 @@ export function parseSkillId(id: string, element: string | null, value: number, 
 }
 
 /* ---------- cartes compilées ---------- */
-export interface CAction { effect: string; kind: string; min: number; max: number; el: number }
+export interface CAction { effect: string; kind: string; min: number; max: number; el: number; chain: number }
 export interface CAbility {
   name: string; cd: number; acc: number; crit: number; critMult: number; uses: number; echo: number;
   actions: CAction[]; dmg: CAction[]; text: string; aoe: boolean; hasDmg: boolean; hasHeal: boolean;
@@ -149,7 +149,7 @@ export interface CAbility {
   /** Gel écrit dans le texte : 0 aucun, 1 toujours, 2 sur coup critique. */
   freeze: 0 | 1 | 2;
   /** Effets écrits dans le texte mais absents des actions chiffrées. */
-  textEternity: boolean; textVamp: number; textAoe: number; textVanish: boolean;
+  textEternity: boolean; textVamp: number; textAoe: number; /** nombre de lignes « Applique Disparition » : chacune retire un passif. */ textVanish: number;
   /** Provocation posée par la capacité. */
   taunt: "none" | "self" | "randomAlly"; tauntTurns: number;
   /** Familles d'actions qui ne s'appliquent qu'en cas de coup critique. */
@@ -296,7 +296,7 @@ function buildAbility(a: RawAbility, mapAct: (a: RawAction) => CAction, count: (
     textEternity: !hasCdAction && has(/^Applique Éternité/),
     textVamp: has(/^Vampirisme$/) ? 50 : 0,
     textAoe: has(/^AoE$/) ? 20 : 0,
-    textVanish: has(/^Applique Disparition/),
+    textVanish: lines.filter((l) => /^Applique Disparition/.test(l)).length,
     taunt, tauntTurns: /pendant 2 tours/.test(t) ? 2 : 1,
     critCond,
     cdPerDead: /diminue de 1 pour chaque carte qui n'est plus sur le terrain/.test(t),
@@ -321,7 +321,7 @@ export function compile(ds: RawDataset): Compiled {
   let total = 0;
   let ok = 0;
   const cards: CCard[] = ds.cards.map((c) => {
-    const mapAct = (a: RawAction): CAction => ({ effect: a.effect, kind: a.kind, min: a.min, max: a.max, el: elIdx(a.element) });
+    const mapAct = (a: RawAction): CAction => ({ effect: a.effect, kind: a.kind, min: a.min, max: a.max, el: elIdx(a.element), chain: a.chain ?? 0 });
     const abilities: CAbility[] = c.abilities.map((a) => buildAbility(a, mapAct, (x) => {
       if (x.effect === "_NULL") return;
       total++;

@@ -452,7 +452,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       const po = tx(c, "poison"); if (po) tgt.poison.push({ pct: po.v, t: 3 });
       if (tx(c, "eternity")) changeCd(tgt, c.inv ? -1 : 1, enemyHit);
       if (tx(c, "temporality") && c.inv) changeCd(tgt, 1, enemyHit);
-      if (tx(c, "vanish") && !tgt.insVan && tgt.tox.length) tgt.tox.pop();
+      if (tx(c, "vanish") && !tgt.insVan && tgt.tox.length) { const lost = tgt.tox.pop()!; if (log) say(`  ⌫ Disparition : ${nm(tgt)} perd « ${lost.fam} »`); }
     }
     const aoe = tx(c, "aoe");
     if (aoe) for (const di of [-1, 1]) {
@@ -598,6 +598,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const dmgActs = acts.filter((x) => isDmgEffect(x.effect));
     const hasDmgNow = dmgActs.length > 0 || acts.some((x) => x.effect === "DamageOpponentHPMAX" || x.effect === "DamageCasterSpamton");
     const hitTargets = new Set<RCard>();
+    /** Pour les capacités à cibles aléatoires : cible touchée par chaque action de dégâts (les effets de la chaîne s'y appliquent). */
+    const chainHit = new Map<number, RCard[]>();
     let main: RCard | null = null;
     let dealtTotal = 0;
 
@@ -624,11 +626,11 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
             if (x.effect === "DamageOpponentHPMAX") { base = (t.max * x.min) / 100; o.noPts = true; }
             if (x.effect === "DamageCasterSpamton") { base = S.spam; el = -1; o.noPts = true; o.noRes = true; }
             // hypothèse : les dégâts bonus selon les PV manquants (Aleera, Rongeur Nuageux) ne sont pas publiés, seul le socle est joué
-            const dealt = t.side === c.side
-              ? (healCard(t, base * (1 + 0.1 * (S.pts[el] ?? 0)) * (crit ? critM : 1), c), 0)
-              : dealHit(S, E, c, t, base, el, crit, critM, brut, mult, o);
+            // une attaque qui tombe sur une carte alliée (cible aléatoire du terrain) la blesse comme n'importe quelle autre
+            const dealt = dealHit(S, sides[t.side], c, t, base, el, crit, critM, brut, mult, o);
             dealtTotal += dealt;
             hitTargets.add(t);
+            chainHit.set(x.chain, [...(chainHit.get(x.chain) ?? []), t]);
           }
         }
         if (a.textAoe && main) for (const di of [-1, 1]) {
@@ -640,7 +642,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
           if (t.side === c.side || !t.alive || immune(t)) continue;
           if (doFreeze) freeze(t, 60, c); // hypothèse : dégâts du dégel = ceux du Tox Gel (60)
           if (a.textEternity) changeCd(t, 1, true);
-          if (a.textVanish && !t.insVan && t.tox.length) t.tox.pop();
+          for (let v = 0; v < a.textVanish && !t.insVan && t.tox.length; v++) { const lost = t.tox.pop()!; if (log) say(`  ⌫ Disparition : ${nm(t)} perd « ${lost.fam} »`); }
           if (x_reset(acts)) for (let k = 0; k < t.cd.length; k++) t.cd[k] = t.abs[k]?.cd ?? t.cd[k];
         }
         if (tx(c, "taunt")) { S.taunt = c; S.tauntLeft = 1; } // Provocation (Tox) : en attaquant
@@ -651,7 +653,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         const t = lowestAlly(S);
         if (t) for (const x of dmgActs) healCard(t, (roll(x) + c.baseB) * (1 + 0.1 * (x.el >= 0 ? S.pts[x.el] * mult : 0)) * (crit ? critM : 1) * (1 + berserk(S)), c);
       }
-      applyEffects(S, E, c, a, ai, acts, crit, critM, mult, roll, main, hitTargets);
+      applyEffects(S, E, c, a, ai, acts, crit, critM, mult, roll, main, hitTargets, chainHit);
       if (doFreeze && !hasDmgNow) { const t = main ?? pickTarget(S, E, c, a, brut, acts); if (t) freeze(t, 60, c); }
       if (a.taunt === "self") { S.taunt = c; S.tauntLeft = a.tauntTurns; }
       else if (a.taunt === "randomAlly") { const t = pick(alive(S).filter((x) => x !== S.taunt)); if (t) { S.taunt = t; S.tauntLeft = 1; } }
@@ -673,7 +675,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   /** Effets autres que les dégâts directs. */
   const applyEffects = (
     S: RSide, E: RSide, c: RCard, a: CAbility, ai: number, acts: CAction[], crit: boolean, critM: number, mult: number,
-    roll: (x: CAction) => number, main: RCard | null, hitTargets: Set<RCard>,
+    roll: (x: CAction) => number, main: RCard | null, hitTargets: Set<RCard>, chainHit: Map<number, RCard[]>,
   ) => {
     let healTarget: RCard | null = null;
     const enemyTargets = (): RCard[] => {
@@ -741,7 +743,11 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         case "RemoveTauntRunning": if (S.taunt) { healTarget = S.taunt; S.taunt = null; } break;
         case "AddCooldown": {
           const val = c.inv ? -x.min : x.min;
-          if (val > 0) {
+          const own = (a.randField || a.randEnemy) && chainHit.has(x.chain) ? chainHit.get(x.chain)!.filter((t) => t.alive) : null;
+          if (own) {
+            // cibles aléatoires : Éternité/Temporalité s'applique à la carte touchée par l'attaque de la même chaîne
+            for (const t of own) changeCd(t, val, t.side !== c.side);
+          } else if (val > 0) {
             const ts = a.cdAllField ? allCards().filter((t) => t.alive) : enemyTargets();
             for (const t of ts) changeCd(t, val, t.side !== c.side);
           } else {
@@ -1175,7 +1181,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
 const BREATH: CAbility = {
   name: "Souffle élémentaire", cd: 1, acc: 100, crit: 1, critMult: 2, uses: 0, echo: 0, actions: [], dmg: [], text: "Attaque 30 dans son élément",
   aoe: false, hasDmg: true, hasHeal: false, engine: false, prio: 3, alliesAll: false, critOnlyCd: false, cost: [], hpCost: 0, randEnemy: false,
-  randField: false, randAlly: false, options: null, optFreeze: [], freeze: 0, textEternity: false, textVamp: 0, textAoe: 0, textVanish: false, taunt: "none",
+  randField: false, randAlly: false, options: null, optFreeze: [], freeze: 0, textEternity: false, textVamp: 0, textAoe: 0, textVanish: 0, taunt: "none",
   tauntTurns: 1, critCond: [], cdPerDead: false, cdAllField: false, cdAllies: false, absorbAlly: false, needsTaunt: false,
 };
 
