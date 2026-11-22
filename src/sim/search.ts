@@ -42,6 +42,8 @@ export interface DecisionRec {
   wr: number[]; n: number[];
   /** Position dans le journal de la partie (si journal demandé). */
   at?: number;
+  /** Caractéristiques des options (ciblage), pour l'apprentissage du modèle de l'IA rapide. */
+  feat?: number[][];
 }
 export interface SearchOpts {
   /** Parties jouées par option (première passe). Les deux meilleures options reçoivent autant de parties en plus. */
@@ -103,7 +105,7 @@ export function searchMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], seed: n
     for (const o of order) if (mean(o) > mean(best) + 1e-9 && cnt[o] >= cnt[best]) best = o;
     const rec: DecisionRec = {
       kind: d.kind, side: d.side, turn: d.turn, labels: Array.from({ length: n }, (_, i) => d.label(i)), def: d.def, chosen: best,
-      wr: wins.map((w, i) => (cnt[i] ? w / cnt[i] : NaN)), n: cnt.slice(), at: mo.log?.length,
+      wr: wins.map((w, i) => (cnt[i] ? w / cnt[i] : NaN)), n: cnt.slice(), at: mo.log?.length, feat: d.feat,
     };
     decisions.push(rec);
     so.onDecision?.(rec);

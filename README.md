@@ -56,11 +56,29 @@ et les règles publiées tirées du code de combat du jeu :
 
 Interprétations (le texte officiel laisse une marge) : l'Immunité bloque les *effets* adverses mais pas les dégâts ;
 les dégâts du dégel des capacités « Gel » valent 60 ; Fumée n'est pas simulée (effet non publié) ;
-les dégâts bonus « selon les PV manquants » (2 cartes) ne sont pas comptés. L'IA joue toutes les compétences
-disponibles et achète les Tox selon une estimation de leur valeur : c'est un bon joueur, pas un joueur parfait.
+les dégâts bonus « selon les PV manquants » (2 cartes) ne sont pas comptés.
+
+### Deux IA de jeu
+
+- **IA experte** (`src/sim/search.ts`) : à chaque décision (ordre des capacités, cible, achat / relance / passer en
+  boutique, option d'un « Choix »), chaque possibilité est jouée puis la partie est terminée des dizaines de fois avec
+  des tirages différents (les mêmes pour toutes les options). La position est reconstruite exactement en rejouant la
+  partie depuis le début avec la même « bande » de tirages aléatoires. C'est lent (≈ 1 s par partie) : elle sert à
+  l'analyse de partie et au classement « IA experte » des meilleurs decks, calculé sur le serveur.
+- **IA rapide** (`DEFAULT_AI` dans `src/sim/engine.ts`) : utilisée pour les millions de parties des tournois. Ses
+  choix de cible et de boutique sont des **modèles appris** sur les décisions de l'IA experte (régression logistique
+  par paires sur des milliers de positions), puis ses réglages sont ajustés par auto-apprentissage (parties contre
+  elle-même, tirages communs). Chaque amélioration n'est gardée que si elle gagne nettement plus de parties.
+
+### Laboratoire (calculs sur le serveur)
+
+`scripts/lab/run.ts`, lancé par le workflow « Laboratoire » après chaque patch, calcule sur les machines de GitHub :
+la méta de référence (plusieurs millions de parties), le classement « IA experte » des meilleurs decks et l'impact
+mesuré de chaque Tox (offert tôt ou tard), carte (valeur de remplacement dans la méta), talent, capacité (partie jouée
+sans elle) et point d'élément. Résultat : `public/data/lab.json`, affiché par les pages Méta, Impact et Cartes.
 
 Vérifications automatiques : `npm test` (données, historique des patchs) et `npm run test:engine`
-(3 000 parties aléatoires sans erreur, reproductibilité, zones, Choix, talent unique, Immunité, Gel).
+(3 000 parties aléatoires sans erreur, reproductibilité, zones, Choix, talent unique, Immunité, Gel, rejeu exact de l'IA experte).
 
 ### Recherche du meilleur deck
 

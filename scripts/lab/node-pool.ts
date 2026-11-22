@@ -2,6 +2,7 @@
 import { Worker } from "node:worker_threads";
 import { cpus } from "node:os";
 import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { compile, type Compiled, type RawDataset } from "../../src/sim/compile";
 import type { Ranked } from "../../src/sim/ranking";
 import type { Task, TaskOut } from "./worker";
@@ -17,7 +18,9 @@ export class NodePool {
   constructor(n?: number) {
     this.size = Math.max(1, n ?? cpus().length);
     for (let i = 0; i < this.size; i++) {
-      const w = new Worker(resolve(process.cwd(), "scripts/lab/worker.ts"));
+      // les workers doivent charger tsx eux-mêmes (les crochets de chargement ne sont pas hérités partout)
+      const local = existsSync(resolve(process.cwd(), "node_modules/tsx"));
+      const w = new Worker(resolve(process.cwd(), "scripts/lab/worker.ts"), local ? { execArgv: ["--import", "tsx"] } : undefined);
       w.on("message", (m: { id: number; result?: unknown; error?: string }) => {
         const h = this.handlers.get(m.id);
         if (!h) return;

@@ -30,7 +30,7 @@ export interface MatchOpts {
 }
 export type DecisionKind = "cast" | "target" | "shop" | "option";
 /** Une décision de jeu : n options, def = choix de l'IA heuristique, label(i) = description de l'option i. */
-export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string }
+export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string; feat?: number[][] }
 export type Chooser = (d: Decision) => number;
 
 /** Paramètres de l'IA heuristique (valeurs par défaut = réglage de référence). */
@@ -43,6 +43,10 @@ export interface AiParams {
   tBack: number;
   /** Coût d'un Spamton dépensé, en unités d'utilité (0 = le prix est ignoré). */
   priceW: number;
+  /** Modèle de ciblage appris (poids des caractéristiques TARGET_FEATURES) ; absent : règle manuelle. */
+  tW?: number[];
+  /** Modèle de boutique appris (poids des caractéristiques SHOP_FEATURES) ; absent : règle manuelle. */
+  sW?: number[];
   /** Ordre des capacités : priorité par catégorie [moteur sans dégâts, utilitaire, soin, dégâts] (plus petit = d'abord). */
   pr: [number, number, number, number];
   fam: Partial<Record<Fam, number>>;
@@ -98,6 +102,10 @@ const toxVal = (comp: Compiled, fam: Fam, r: number, el: number): number => {
   return f?.vals[r] ?? 1;
 };
 const avgOf = (x: CAction) => (x.min + x.max) / 2;
+/** Caractéristiques d'une option de boutique (modèle appris) ; « passer » = toutes à zéro. */
+export const SHOP_FEATURES = ["achat", "relance", "utilité", "utilité × tour", "prix", "achat × tour", "achat × Spamtons", "relance × tour", "relance × Spamtons", "relance × meilleure offre", "coût de relance", "rareté", "Spamtons restants", "part des PV de la carte", "PV de la carte (%)"];
+/** Noms des caractéristiques de ciblage (modèle appris). */
+export const TARGET_FEATURES = ["biais", "tue", "tue sans retour", "part des PV ôtée", "menace", "PV restants (%)", "reviendra", "attaque", "soin", "réflexion", "bouclier", "gelée", "PV (milliers)", "facteur de résistance", "capacités prêtes", "passifs", "provocation"];
 const ACT_FR: Record<string, string> = {
   damage: "dégâts", healTarget: "soin", healCaster: "soin", AddAllPlayerAttack: "éléments", AddCooldown: "recharge",
   AddCardResistance: "résistance", AddOppCardResistance: "résistance", AddSpamton: "Spamtons",
@@ -465,6 +473,17 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     for (const x of E.cards) if (x.alive && x.tk === "Protection sauvage" && x.hp < x.max * 0.5) return x;
     return null;
   };
+  /** Caractéristiques d'une cible (voir TARGET_FEATURES). */
+  const targetFeatures = (x: RCard, d: number, hpEff: number, back: number, r: number): number[] => {
+    const kill = d >= x.hp ? 1 : 0;
+    let atk = 0; for (let e = 0; e < 7; e++) atk += x.d.dmgRate[e];
+    let ready = 0; for (let k = 0; k < x.cd.length; k++) if (x.cd[k] <= 1) ready++;
+    return [
+      1, kill, kill * (back ? 0 : 1), Math.min(1, d / Math.max(1, hpEff)), x.d.threat / 100, x.hp / x.max, back ? 1 : 0,
+      atk / 100, x.d.healRate / 100, tx(x, "reflect") ? 1 : 0, tx(x, "shield") && !x.shieldUsed ? 1 : 0, x.frozen ? 1 : 0,
+      x.hp / 1000, r, ready / Math.max(1, x.cd.length), x.tox.length / 3, sides[x.side].taunt === x ? 1 : 0,
+    ];
+  };
   const pickTarget = (S: RSide, E: RSide, c: RCard, a: CAbility, brut: boolean, acts: CAction[]): RCard | null => {
     let cand = E.cards.filter((x) => x.alive);
     if (!cand.length) return null;
@@ -475,6 +494,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const P = AI[c.side];
     let bi = 0;
     let bestS = -1e9;
+    const feats: number[][] | null = opts.choose || P.tW ? [] : null;
     const dmg = acts.filter((x) => isDmgEffect(x.effect));
     const el = dmg[0]?.el ?? -1;
     const pts = el >= 0 ? S.pts[el] : 0;
@@ -491,12 +511,17 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       if (d >= x.hp) sc += (P.tKill + x.d.threat) * (back ? P.tRevive : 1);
       if (tx(x, "reflect")) sc -= d * (tx(x, "reflect")!.v / 100) * P.tReflect;
       if (x.frozen) sc -= P.tFrozen;
-      sc += rng() * 0.5;
+      if (feats) {
+        const f = targetFeatures(x, d, hpEff, back, r);
+        feats.push(f);
+        if (P.tW) { sc = 0; for (let q = 0; q < f.length; q++) sc += f[q] * (P.tW[q] ?? 0); }
+      }
+      sc += rng() * (P.tW ? 0.001 : 0.5);
       if (sc > bestS) { bestS = sc; bi = k; }
     }
     if (opts.choose && cand.length > 1) {
       const cc = cand;
-      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, label: (i) => `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
+      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, feat: feats ?? undefined, label: (i) => `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
     }
     return cand[bi];
   };
@@ -944,10 +969,28 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       const iReroll = canReroll ? cands.length : -1;
       let ch = cands.length && cands[0].u >= thr ? 0
         : canReroll && rerolls < P.rerollMax && t < P.rerollTurn && S.spam >= cost + P.rerollReserve ? iReroll : nOpt - 1;
+      let feats: number[][] | undefined;
+      if (opts.choose || P.sW) {
+        const bestU = cands.length ? cands[0].u : 0;
+        const tt = t / 20, sp = S.spam / 100;
+        feats = [];
+        for (let i = 0; i < nOpt; i++) {
+          if (i < cands.length) {
+            const b = cands[i];
+            const hpTot = S.cards.reduce((p, x) => p + (x.alive ? x.max : 0), 0) || 1;
+            feats.push([1, 0, b.u, b.u * tt, b.price / 100, tt, sp, 0, 0, 0, 0, b.r / 3, (S.spam - b.price) / 100, b.c.max / hpTot, b.c.hp / b.c.max]);
+          } else if (i === iReroll) feats.push([0, 1, 0, 0, 0, 0, 0, tt, sp, bestU, cost / 100, 0, 0, 0, 0]);
+          else feats.push(new Array(15).fill(0));
+        }
+        if (P.sW) {
+          let bs = -1e9;
+          feats.forEach((f, i) => { let v = 0; for (let q = 0; q < f.length; q++) v += f[q] * (P.sW![q] ?? 0); if (v > bs) { bs = v; ch = i; } });
+        }
+      }
       if (opts.choose && nOpt > 1) {
         const cc = cands;
         ch = decide({
-          kind: "shop", side: s as 0 | 1, turn: t, n: nOpt, def: ch,
+          kind: "shop", side: s as 0 | 1, turn: t, n: nOpt, def: ch, feat: feats,
           label: (i) => i < cc.length ? `Acheter ${cc[i].f.name} (${["C", "R", "E", "L"][cc[i].r]}, ${cc[i].price}) pour ${cc[i].c.d.name}` : i === iReroll ? `Relancer la boutique (${cost})` : "Passer (+10 Spamtons)",
         });
       }
