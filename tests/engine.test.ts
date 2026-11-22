@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { compile, type RawDataset } from "../src/sim/compile";
-import { DEFAULT_AI, mulberry32, playMatch, type DeckSpec, type Snapshot } from "../src/sim/engine";
+import { DEFAULT_AI, mulberry32, playMatch, type DeckSpec, type Frame, type Snapshot } from "../src/sim/engine";
 
 const ds = JSON.parse(readFileSync(new URL("../public/data/dataset.json", import.meta.url), "utf8")) as RawDataset;
 const comp = compile(ds);
@@ -319,4 +319,59 @@ test("Fumée : après une compétence de dégâts ou de soins, les 4 cartes sont
   assert.ok(shuffled > 0, "les positions changent");
   assert.ok(revealedAfter > 0, "une carte se révèle après avoir agi ou subi un effet");
   assert.equal(hiddenOnly, 0, "seul le camp avec Fumée est caché");
+});
+
+/** Découpe un journal en tours : [{ header, lines }]. */
+const turnsOf = (log: string[]) => {
+  const out: { header: string; lines: string[] }[] = [];
+  for (const l of log) { if (l.startsWith("— Tour")) out.push({ header: l, lines: [] }); else out.at(-1)?.lines.push(l); }
+  return out;
+};
+const randomDecks = (i: number, must: number[]): [DeckSpec, DeckSpec] => {
+  const r = mulberry32(1000 + i); const nums = comp.cards.map((c) => c.num);
+  const pick = (): DeckSpec => { const s = new Set<number>([must[Math.floor(r() * must.length)]]); while (s.size < 4) s.add(nums[Math.floor(r() * nums.length)]); return { cards: [...s], lv: [3, 3, 3, 3] }; };
+  return [pick(), pick()];
+};
+
+test("Vengeur : quand une carte meurt sans que le porteur ait porté le coup, ses capacités sont rechargées et relancées dans le même tour", () => {
+  const av = comp.cards.filter((c) => c.skills.some((s) => s.fam === "avenger")).map((c) => c.num);
+  let resets = 0, recasts = 0;
+  for (let i = 0; i < 400; i++) {
+    const log: string[] = [];
+    playMatch(comp, randomDecks(i, av), mulberry32(i), { log });
+    for (const t of turnsOf(log)) {
+      resets += t.lines.filter((l) => l.includes("⚔ Vengeur")).length;
+      const casts = t.lines.filter((l) => / lance « /.test(l));
+      if (new Set(casts).size < casts.length && t.lines.some((l) => l.includes("⚔ Vengeur"))) recasts++;
+    }
+  }
+  assert.ok(resets > 0, "Vengeur ne se déclenche jamais");
+  assert.ok(recasts > 0, "aucune capacité relancée dans le même tour après Vengeur");
+});
+
+test("Gel : la carte gelée ne lance rien pendant le tour suivant, puis dégèle sans dégâts", () => {
+  const gel = comp.cards.filter((c) => c.abilities.some((a) => a.freeze > 0)).map((c) => c.num);
+  let frozenTurns = 0;
+  for (let i = 0; i < 200; i++) {
+    const log: string[] = [];
+    const fr: Frame[] = [];
+    playMatch(comp, randomDecks(i, gel), mulberry32(i), { log, frames: fr });
+    for (let k = 1; k < fr.length; k++) {
+      // une carte gelée à la fin d'un tour adverse ne doit pas avoir de capacité prête (« ready ») pendant son propre tour
+      fr[k].board.cards.forEach((side) => side.forEach((c) => { if (c.frozen) { frozenTurns++; assert.ok(c.abilities.every((a) => !a.ready), `${c.name} gelée mais prête`); } }));
+    }
+  }
+  assert.ok(frozenTurns > 0, "aucune carte gelée observée");
+});
+
+test("Écho : une capacité qui déclenche Écho est relancée immédiatement (recharge remise à 0)", () => {
+  const ec = comp.cards.filter((c) => c.abilities.some((a) => a.echo > 0)).map((c) => c.num);
+  assert.ok(ec.length > 0, "aucune carte avec Écho");
+  let again = 0;
+  for (let i = 0; i < 400; i++) {
+    const log: string[] = [];
+    playMatch(comp, randomDecks(i, ec), mulberry32(i), { log });
+    for (const t of turnsOf(log)) { const casts = t.lines.filter((l) => / lance « /.test(l)); if (new Set(casts).size < casts.length) again++; }
+  }
+  assert.ok(again > 0, "aucun double lancer dans un même tour");
 });

@@ -407,7 +407,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       const O = sides[o.side];
       const g = tx(o, "graveyard");
       if (g) for (let e = 0; e < 6; e++) O.pts[e] += g.v; // Cimetière : « lorsqu'une carte meurt »
-      if (tx(o, "avenger") && o !== killer) for (let k = 0; k < o.cd.length; k++) o.cd[k] = 0; // Vengeur, même immunisé
+      if (tx(o, "avenger") && o !== killer) { for (let k = 0; k < o.cd.length; k++) o.cd[k] = 0; if (log) say(`  ⚔ Vengeur : ${nm(o)} récupère toutes ses capacités`); } // Vengeur, même immunisé, tours allié et adverse
       if (o.tk === "Armure des Ames") for (let e = 0; e < 6; e++) o.res[e] = clampRes(o.res[e] + o.tv);
       if (o.tk === "Vitalite des Ames") { o.max += o.tv; o.hp += o.tv; }
       if (o.tk === "OneManArmy") o.baseB += o.tv;
