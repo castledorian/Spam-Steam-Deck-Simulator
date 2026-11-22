@@ -80,6 +80,10 @@ sans elle) et point d'élément. Résultat : `public/data/lab.json`, affiché pa
 Vérifications automatiques : `npm test` (données, historique des patchs) et `npm run test:engine`
 (3 000 parties aléatoires sans erreur, reproductibilité, zones, Choix, talent unique, Immunité, Gel, rejeu exact de l'IA experte).
 
+### Plateau (match en direct)
+
+La page **Plateau** rejoue une partie décision par décision. Le moteur étant déterministe, une partie est décrite par ses decks, sa graine, le premier joueur, le terrain et les choix du joueur humain : pour annuler ou rouvrir un lien partagé, on rejoue simplement la partie avec ces choix (`src/sim/play.ts`). Le moteur expose l'état complet du terrain à chaque ligne de journal (`Frame`) et à chaque décision (`Board`). Les attaques à cible aléatoire du terrain (Danse des plumes) blessent aussi les cartes alliées ; chaque ligne « Applique Disparition » retire un passif (Malédiction aquatique en applique deux).
+
 ### Recherche du meilleur deck
 
 1. toutes les combinaisons de 4 cartes sont notées par un modèle statique ;
