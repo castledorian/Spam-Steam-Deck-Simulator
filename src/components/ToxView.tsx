@@ -50,11 +50,13 @@ export function ToxView() {
       <section className="space-y-3">
         <h2 className="font-display text-2xl text-white">Probabilité de rareté selon la Chance</h2>
         <div className="panel overflow-x-auto p-4">
-          <div className="flex h-44 min-w-[640px] items-end gap-[3px]">
+          <div className="flex h-48 min-w-[640px] items-stretch gap-[3px]" data-chart="chance">
             {LUCK_ODDS.map((o, l) => (
-              <div key={l} className="flex flex-1 flex-col-reverse" title={`Chance ${l} : ${o.map((x, i) => RAR_NAMES[i] + " " + (x * 100).toFixed(1) + "%").join(" · ")}`}>
-                {o.map((x, i) => <div key={i} style={{ height: `${x * 100}%`, background: RC[i] }} />)}
-                <span className="mt-1 text-center text-[9px] text-white/40">{l % 5 === 0 ? l : ""}</span>
+              <div key={l} className="flex h-full flex-1 flex-col" title={`Chance ${l} : ${o.map((x, i) => RAR_NAMES[i] + " " + (x * 100).toFixed(1) + "%").join(" · ")}`}>
+                <div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden rounded-t-sm">
+                  {o.map((x, i) => <div key={i} data-bar style={{ flexGrow: x, flexBasis: 0, minHeight: x > 0 ? 1 : 0, background: RC[i] }} />)}
+                </div>
+                <span className="mt-1 h-3 text-center text-[9px] leading-3 text-white/40">{l % 5 === 0 ? l : ""}</span>
               </div>
             ))}
           </div>

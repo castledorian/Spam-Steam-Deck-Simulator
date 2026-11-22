@@ -112,6 +112,29 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
   await ctx.close();
 }
 
+// graphique de la Chance (page Tox) : les barres doivent avoir une hauteur
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "fr-FR" });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(e.message));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+  for (const path of ["/tox/", "/impact/", "/meta/", "/cartes/", "/patchs/", "/simulateur/", "/collection/", "/"]) {
+    errs.length = 0;
+    await page.goto("http://localhost:4173" + path, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1200);
+    if (path === "/tox/") {
+      const h = await page.evaluate(() => [...document.querySelectorAll('[data-chart="chance"] [data-bar]')].map((b) => b.getBoundingClientRect().height));
+      report.push(`[graphique] Chance : ${h.length} barres, hauteur totale ${Math.round(h.reduce((a, b) => a + b, 0))} px, visibles ${h.filter((x) => x > 0.5).length}`);
+      await page.locator('[data-chart="chance"]').scrollIntoViewIfNeeded();
+      await thumb(page, "pc-tox-chance");
+    }
+    const imgs = await page.evaluate(() => [...document.images].filter((i) => i.complete && i.naturalWidth === 0).length);
+    report.push(`[erreurs] ${path} : ${errs.length} erreur(s) console${errs.length ? " : " + errs.slice(0, 2).join(" | ").slice(0, 200) : ""}, ${imgs} image(s) cassée(s)`);
+  }
+  await ctx.close();
+}
+
 // conseiller de deck (téléphone) : analyse rapide d'un deck faible avec toutes les cartes
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
