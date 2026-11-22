@@ -82,7 +82,7 @@ Vérifications automatiques : `npm test` (données, historique des patchs) et `n
 
 ### Plateau (match en direct)
 
-La page **Plateau** rejoue une partie décision par décision. Le moteur étant déterministe, une partie est décrite par ses decks, sa graine, le premier joueur, le terrain et les choix du joueur humain : pour annuler ou rouvrir un lien partagé, on rejoue simplement la partie avec ces choix (`src/sim/play.ts`). Le moteur expose l'état complet du terrain à chaque ligne de journal (`Frame`) et à chaque décision (`Board`). Les attaques à cible aléatoire du terrain (Danse des plumes) blessent aussi les cartes alliées ; chaque ligne « Applique Disparition » retire un passif (Malédiction aquatique en applique deux).
+La page **Plateau** rejoue une partie décision par décision. Le moteur étant déterministe, une partie est décrite par ses decks, sa graine, le premier joueur, le terrain et les choix du joueur humain : pour annuler ou rouvrir un lien partagé, on rejoue simplement la partie avec ces choix (`src/sim/play.ts`). Le moteur expose l'état complet du terrain à chaque ligne de journal (`Frame`) et à chaque décision (`Board`). En mode « je joue », le tour est libre comme dans SPAM : capacités et boutique (acheter un Tox, relancer, passer, bannir une famille pour la partie) dans l'ordre voulu, puis fin de tour ; le bot, lui, joue boutique puis capacités et ne bannit pas (hypothèse : un bannissement par boutique, coût non publié). Les attaques à cible aléatoire du terrain (Danse des plumes) blessent aussi les cartes alliées ; chaque ligne « Applique Disparition » retire un passif (Malédiction aquatique en applique deux).
 
 ### Recherche du meilleur deck
 
