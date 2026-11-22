@@ -206,3 +206,74 @@ test("tour libre (Plateau) : boutique réglée en premier aux tours pairs, banni
   assert.equal(offersAfterBan, 0, "une famille bannie ne revient pas dans les offres");
   assert.equal(sawBuyAfterBuy, false, "un seul achat par boutique");
 });
+
+test("priorité des capacités : le scaling (valeur élémentaire) passe avant les dégâts", () => {
+  for (const c of comp.cards) for (const a of c.abilities) {
+    if (a.engine && !a.hasDmg) assert.equal(a.prio, 0, `${c.name} : ${a.name}`);
+    if (a.engine && a.hasDmg) assert.equal(a.prio, 4, `${c.name} : ${a.name}`);
+  }
+  const pr = DEFAULT_AI.pr;
+  assert.ok(pr[0] < pr[4] && pr[4] < pr[1] && pr[1] < pr[3] && pr[1] < pr[2], "ordre : scaling, scaling+dégâts, utilitaire, puis dégâts / soins");
+  // en jeu : la première capacité proposée par défaut à chaque tour est une capacité de scaling quand l'une d'elles est prête
+  let checked = 0, bad = 0, lastTurn = -1;
+  const choose = (d: import("../src/sim/engine").Decision) => {
+    if (d.kind !== "turn") return d.def;
+    const refs = Array.from({ length: d.n }, (_, i) => d.ref!(i));
+    if (refs.some((r) => r?.tag === "buy")) return refs.findIndex((r) => r?.tag === "skip");
+    const b = d.board!();
+    const casts = refs.map((r, i) => ({ r, i })).filter((x) => x.r?.tag === "cast") as { r: { tag: "cast"; card: number; ab: number }; i: number }[];
+    if (!casts.length) return d.def;
+    if (d.turn !== lastTurn) {
+      lastTurn = d.turn;
+      const eng = (x: { r: { card: number; ab: number } }) => comp.byNum.get(b.cards[d.side][x.r.card].num)!.abilities.find((a) => a.name === b.cards[d.side][x.r.card].abilities[x.r.ab].name)!.engine;
+      if (casts.some(eng)) { checked++; if (!eng(casts.find((x) => x.i === d.def) as never)) bad++; }
+    }
+    return casts[0].i;
+  };
+  for (let sd = 1; sd <= 12; sd++) {
+    lastTurn = -1;
+    playMatch(comp, [deck(["Chouette Polychrome", "Épine Médusine", "Esprit Feu", "Esprit Eau"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(sd), { choose, free: 0 });
+  }
+  assert.ok(checked > 0, "au moins un tour avec scaling prêt");
+  assert.equal(bad, 0, "le conseil par défaut commence par le scaling");
+});
+
+test("un Tox acheté peut remplacer une capacité épuisée (Mue d'Épine Médusine) ou un autre passif", () => {
+  let sawAbRep = false, sawToxRep = false, muePresentAfter = false, mueUsed = false;
+  const choose = (d: import("../src/sim/engine").Decision) => {
+    if (d.kind !== "turn" && d.kind !== "target" && d.kind !== "option") return d.def;
+    if (d.kind !== "turn") return d.def;
+    const refs = Array.from({ length: d.n }, (_, i) => d.ref!(i));
+    const b = d.board!();
+    const me = b.cards[d.side][0];
+    mueUsed = mueUsed || (!!me && me.abilities.some((a) => a.name === "Mue" && a.cd > 0));
+    const buys = refs.map((r, i) => ({ r, i })).filter((x) => x.r?.tag === "buy" && (x.r as { card: number }).card === 0) as { r: { tag: "buy"; rep?: { kind: string; k: number } }; i: number }[];
+    if (buys.length) {
+      for (const x of buys) { if (x.r.rep?.kind === "ab") sawAbRep = true; if (x.r.rep?.kind === "tox") sawToxRep = true; }
+      const ab = buys.find((x) => x.r.rep?.kind === "ab" && me.abilities[x.r.rep.k]?.name === "Mue");
+      const pick = ab ?? buys[0];
+      if (ab) muePresentAfter = true;
+      return pick.i;
+    }
+    const cast = refs.findIndex((r) => r?.tag === "cast" && (r as { card: number }).card === 0);
+    if (cast >= 0) return cast;
+    const sk = refs.findIndex((r) => r?.tag === "skip");
+    return sk >= 0 ? sk : d.def;
+  };
+  const log: string[] = [];
+  playMatch(comp, [deck(["Épine Médusine", "Esprit Feu", "Esprit Eau", "Esprit Terre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(5), { choose, free: 0, log });
+  assert.ok(sawAbRep || sawToxRep, "une carte pleine propose des remplacements");
+  assert.ok(sawAbRep, "les capacités sont remplaçables");
+  assert.ok(log.some((l) => /remplace/.test(l)), "le journal indique l'emplacement remplacé");
+  void muePresentAfter; void mueUsed;
+});
+
+test("les bots remplacent une capacité à usage unique épuisée par un Tox", () => {
+  let replacedMue = 0;
+  for (let sd = 1; sd <= 200; sd++) {
+    const log: string[] = [];
+    playMatch(comp, [deck(["Épine Médusine", "Esprit Feu", "Esprit Eau", "Esprit Terre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(sd), { log });
+    if (log.some((l) => /achète .* pour Épine Médusine .*remplace Mue/.test(l))) replacedMue++;
+  }
+  assert.ok(replacedMue > 0, "au moins une partie où Mue épuisée est remplacée");
+});

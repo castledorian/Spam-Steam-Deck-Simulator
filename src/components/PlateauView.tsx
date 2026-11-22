@@ -164,6 +164,7 @@ export function PlateauView() {
   const [open, setOpen] = useState<RawCard | null>(null);
   const [copied, setCopied] = useState(false);
   const [armed, setArmed] = useState<number | null>(null);
+  const [pick, setPick] = useState<number[] | null>(null);
   const [chrono, setChrono] = useState(false);
   const [left, setLeft] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
@@ -204,7 +205,7 @@ export function PlateauView() {
     setGame({ decks: [spec(a), spec(b)], seed: same && game ? game.seed : (Math.random() * 1e9) >>> 0, first: same && game ? game.first : f, terrain: same && game ? game.terrain : Math.floor(Math.random() * 6), human: mode === "play" ? 0 : null, answers: [] });
     if (!same) window.history.replaceState(null, "", window.location.pathname);
   };
-  const answer = (i: number) => { if (!game || i < 0) return; setRedo([]); setArmed(null); setGame({ ...game, answers: [...game.answers, i] }); };
+  const answer = (i: number) => { if (!game || i < 0) return; setRedo([]); setArmed(null); setPick(null); setGame({ ...game, answers: [...game.answers, i] }); };
   const skillIcons = useMemo(() => {
     const m = new Map<string, string>();
     if (ds) for (const c of ds.cards) for (const k of c.skills) m.set(k.name, k.icon);
@@ -249,7 +250,7 @@ export function PlateauView() {
   const idxOf = (pred: (r: Ref) => boolean) => refs.findIndex((r) => !!r && pred(r));
   const castIdx = (card: number, ab: number) => idxOf((r) => r.tag === "cast" && r.card === card && r.ab === ab);
   const targetIdx = (side: number, card: number) => idxOf((r) => r.tag === "target" && r.side === side && r.card === card);
-  const buyIdx = (offer: number, card: number) => idxOf((r) => r.tag === "buy" && r.offer === offer && r.card === card);
+  const buyIdxs = (offer: number, card: number) => refs.flatMap((r, i) => (r && r.tag === "buy" && r.offer === offer && r.card === card ? [i] : []));
   const endIdx = idxOf((r) => r.tag === "end");
   endRef.current = () => { if (!pending) return; if (pending.kind === "turn" && endIdx >= 0) answer(endIdx); else answer(pending.def); };
   const toxIcon = (name: string) => { const i = skillIcons.get(name); return i ? img(i) : null; };
@@ -261,7 +262,7 @@ export function PlateauView() {
       <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
         {board.cards[side].map((c, i) => {
           const isTarget = pending?.kind === "target" && targetIdx(side, i) >= 0;
-          const isBuy = pending?.kind === "turn" && armed !== null && side === 0 && buyIdx(armed, i) >= 0;
+          const isBuy = pending?.kind === "turn" && armed !== null && side === 0 && buyIdxs(armed, i).length > 0;
           const abil: AbilityUi[] | undefined = pending?.kind === "turn" && side === 0
             ? c.abilities.map((_, k) => { const ix = castIdx(i, k); return { can: ix >= 0, hint: hint && ix >= 0 && ix === pending.def, onClick: () => answer(ix) }; })
             : undefined;
@@ -270,7 +271,7 @@ export function PlateauView() {
               selected={!!sel && sel[0] === side && sel[1] === i}
               onClick={() => {
                 if (isTarget) return answer(targetIdx(side, i));
-                if (isBuy) return answer(buyIdx(armed!, i));
+                if (isBuy) { const ix = buyIdxs(armed!, i); if (ix.length === 1) return answer(ix[0]); setPick(ix); return; }
                 setSel([side, i]); setTab("inspecteur");
               }} />
           );
@@ -358,6 +359,14 @@ export function PlateauView() {
                     onSkip={idxOf((r) => r.tag === "skip") >= 0 ? () => answer(idxOf((r) => r.tag === "skip")) : null}
                     canBan={(k) => idxOf((r) => r.tag === "ban" && r.offer === k) >= 0}
                     onBan={(k) => answer(idxOf((r) => r.tag === "ban" && r.offer === k))} />
+                )}
+                {pick && (
+                  <div className="panel space-y-2 border-emerald-300/60 p-3 text-sm">
+                    <div className="font-semibold text-white">Carte pleine : que remplacer ?</div>
+                    <p className="text-xs text-white/55">Un Tox prend la place d&apos;un autre passif ou d&apos;une capacité de la carte (une capacité à usage limité déjà utilisée ne sert plus à rien).</p>
+                    {pick.map((ix) => <button key={ix} className="btn block w-full text-left" onClick={() => { setPick(null); answer(ix); }}>{pending.labels[ix].includes(" en remplaçant ") ? "Remplacer " + pending.labels[ix].split(" en remplaçant ")[1] : pending.labels[ix]}</button>)}
+                    <button className="text-xs text-white/50 underline" onClick={() => setPick(null)}>Annuler</button>
+                  </div>
                 )}
                 <div className="panel flex flex-wrap items-center justify-between gap-2 p-3">
                   <div>

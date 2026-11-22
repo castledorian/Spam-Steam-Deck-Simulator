@@ -80,6 +80,11 @@ sans elle) et point d'élément. Résultat : `public/data/lab.json`, affiché pa
 Vérifications automatiques : `npm test` (données, historique des patchs) et `npm run test:engine`
 (3 000 parties aléatoires sans erreur, reproductibilité, zones, Choix, talent unique, Immunité, Gel, rejeu exact de l'IA experte).
 
+### Règles de l'IA : scaling d'abord, emplacements
+
+- **Ordre des capacités** : à chaque tour, l'IA lance d'abord ce qui monte la valeur élémentaire (scaling, qui renforce toutes les autres cartes), puis les capacités mixtes (scaling + dégâts), puis les utilitaires, enfin dégâts et soins.
+- **Emplacements** : chaque carte a 3 emplacements partagés entre capacités et Tox. Un Tox acheté va dans un emplacement libre, sinon il **remplace** un autre Tox ou une capacité de la carte. L'IA compare la valeur du nouveau Tox à celle de ce qu'elle perd (une capacité à usage limité déjà utilisée, comme la Mue d'Épine Médusine, ne vaut plus rien ; le scaling et les dégâts sont rarement sacrifiés). Au Plateau, une carte pleine vous demande quoi remplacer. Les valeurs de remplacement sont des estimations, pas des règles publiées.
+
 ### Conseiller de deck
 
 Le conseiller (`adviseDeck`, `src/sim/pool.ts`) joue votre deck de 4 cartes contre les meilleurs decks de la méta. Première passe : uniquement les cartes et **talents débloqués de votre collection** (remplacements d'une carte, choix des talents, talents à débloquer en montant une carte de niveau). Seconde passe, optionnelle : les cartes que vous ne possédez pas (niveau maximal supposé) qui amélioreraient le deck, à obtenir. Variantes et deck de départ partagent les mêmes tirages ; les meilleurs gains sont remesurés avec de nouveaux tirages et donnés avec un intervalle de confiance à 95 %.

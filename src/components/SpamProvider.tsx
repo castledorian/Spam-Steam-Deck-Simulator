@@ -72,7 +72,7 @@ export const useSpam = () => {
 const KEY = "spamlab.collection.v1";
 const KEY_MODE = "spamlab.talents.v1";
 /** Préfixe de la méta mémorisée : changé à chaque évolution du moteur pour ne pas réutiliser d'anciens résultats. */
-const META_KEY = "spamlab.meta.v7.";
+const META_KEY = "spamlab.meta.v8.";
 
 export function SpamProvider({ children }: { children: ReactNode }) {
   const [ds, setDs] = useState<RawDataset | null>(null);

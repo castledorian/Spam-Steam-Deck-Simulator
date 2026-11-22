@@ -287,7 +287,8 @@ function buildAbility(a: RawAbility, mapAct: (a: RawAction) => CAction, count: (
     cost, hpCost, randEnemy, randField, randAlly: /Cible aléatoirement les cartes alliées/.test(t),
     name: a.name, cd: a.cooldown, acc: a.precision, crit: a.critChance, critMult: a.critMultiplier || 2, uses: a.uses, echo: a.cooldownResetChance,
     actions, dmg, text: t, aoe, hasDmg, hasHeal, engine,
-    prio: engine && !hasDmg ? 0 : !hasDmg && !hasHeal ? 1 : hasDmg ? 3 : 2,
+    // 0 : monte la valeur élémentaire (scaling) sans dégâts ; 4 : scaling + dégâts ; 1 : autre utilitaire ; 2 : soin ; 3 : dégâts
+    prio: engine && !hasDmg ? 0 : engine ? 4 : !hasDmg && !hasHeal ? 1 : hasDmg ? 3 : 2,
     alliesAll: /Cible toutes les cartes alliées|à toutes les cartes alliées|toutes les cartes alliées/.test(t),
     critOnlyCd: critCond.includes("AddCooldown"),
     options: splitOptions(t, actions),

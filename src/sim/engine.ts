@@ -48,7 +48,7 @@ export interface Frame { line: string; board: Board }
 export type Ref =
   | { tag: "cast"; card: number; ab: number }
   | { tag: "target"; side: number; card: number }
-  | { tag: "buy"; offer: number; card: number }
+  | { tag: "buy"; offer: number; card: number; /** emplacement remplacé (carte pleine) : un passif ou une capacité */ rep?: { kind: "tox" | "ab"; k: number } }
   | { tag: "reroll" } | { tag: "skip" } | { tag: "ban"; offer: number } | { tag: "end" } | { tag: "opt" };
 export interface ShopOffer { fam: string; name: string; group: string; el: number; r: number; price: number; desc: string; value: number; affordable: boolean }
 export interface ShopView { offers: (ShopOffer | null)[]; rerollCost: number; banUsed: boolean }
@@ -72,7 +72,7 @@ export interface AiParams {
   /** Modèle de boutique appris (poids des caractéristiques SHOP_FEATURES) ; absent : règle manuelle. */
   sW?: number[];
   /** Ordre des capacités : priorité par catégorie [moteur sans dégâts, utilitaire, soin, dégâts] (plus petit = d'abord). */
-  pr: [number, number, number, number];
+  pr: [number, number, number, number, number];
   fam: Partial<Record<Fam, number>>;
 }
 /**
@@ -82,7 +82,7 @@ export interface AiParams {
  */
 export const DEFAULT_AI: AiParams = {
   shopThr: 0.12, shopDecay: 40, rerollMax: 2, rerollTurn: 14, rerollReserve: 20,
-  tKill: 1000, tThreat: 150, tDmg: 0.02, tReflect: 0.5, tFrozen: 0, tRevive: 0.1, tBack: 5, priceW: 0.0005, pr: [0, 1, 3, 2],
+  tKill: 1000, tThreat: 150, tDmg: 0.02, tReflect: 0.5, tFrozen: 0, tRevive: 0.1, tBack: 5, priceW: 0.0005, pr: [0, 1, 3, 2, 0.5],
   fam: { erosion: 0, heart: 0.5, heartres: 2, tenacity: 2 },
   tW: [0.0, 0.4817, -0.5138, 2.4283, -0.8284, -1.2461, -0.0496, 1.015, 0.3216, -0.6336, -0.2852, -0.3852, 0.2736, 0.8516, 0.2794, -0.1512, -4.9295],
 };
@@ -929,8 +929,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     for (let e = 0; e < 7; e++) r += c.d.dmgRate[e] * (1 + 0.1 * S.pts[e]);
     return r;
   };
-  const utility = (S: RSide, E: RSide, c: RCard, f: ToxFamily, r: number, t: number): number => {
-    const v = f.vals[r] as number;
+  const utility = (S: RSide, E: RSide, c: RCard, f: ToxFamily, r: number, t: number, vOver?: number): number => {
+    const v = vOver ?? (f.vals[r] as number);
     const al = alive(S);
     let team = 0; for (const x of al) team += rate(S, x);
     team = team || 1;
@@ -988,13 +988,47 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       default: return 0;
     }
   };
+  /* ----- emplacements : un Tox acheté va dans un emplacement libre, ou remplace un autre passif ou une capacité de la carte ----- */
+  type Rep = { kind: "tox" | "ab"; k: number };
+  const toxFamOf = (x: Tox): ToxFamily | undefined => comp.tox.find((f) => f.fam === x.fam && (x.fam !== "heart" || f.el === x.el));
+  /** Valeur de conserver une capacité (même échelle que l'utilité d'un Tox). Une capacité à usage limité déjà épuisée ne vaut plus rien. */
+  const abilityWorth = (S: RSide, c: RCard, k: number): number => {
+    const a = c.abs[k];
+    if (a.uses > 0 && c.uses[k] <= 0) return 0;
+    let team = 0; for (const x of alive(S)) team += rate(S, x);
+    const share = rate(S, c) / (team || 1);
+    const nDmg = c.abs.filter((x) => x.hasDmg).length;
+    const w = a.engine ? 0.6 : a.hasDmg ? 0.1 + (0.8 * share) / Math.max(1, nDmg) : a.hasHeal ? 0.2 : 0.12;
+    return a.uses > 0 ? w * (0.3 + 0.7 * (c.uses[k] / a.uses)) : w;
+  };
+  /** Emplacements où un Tox peut aller sur cette carte, avec la valeur perdue (0 pour un emplacement libre). */
+  const slotOpts = (S: RSide, E: RSide, c: RCard, t: number, f: ToxFamily): { rep: Rep | null; loss: number; what: string }[] => {
+    if (f.fam === "metamorph" || c.abs.length + c.tox.length < SLOTS) return [{ rep: null, loss: 0, what: "" }];
+    const out: { rep: Rep | null; loss: number; what: string }[] = [];
+    c.tox.forEach((x, k) => {
+      const fx = toxFamOf(x);
+      out.push({ rep: { kind: "tox", k }, loss: fx ? Math.max(0, utility(S, E, c, fx, x.r, t, x.v)) : 0.03, what: fx?.name ?? x.fam });
+    });
+    c.abs.forEach((a, k) => out.push({ rep: { kind: "ab", k }, loss: abilityWorth(S, c, k), what: a.name }));
+    return out;
+  };
+  const bestSlot = (S: RSide, E: RSide, c: RCard, t: number, f: ToxFamily) => slotOpts(S, E, c, t, f).reduce((b, o) => (o.loss < b.loss ? o : b));
+  const dropSlot = (c: RCard, rep: Rep) => {
+    if (rep.kind === "tox") {
+      const lost = c.tox.splice(rep.k, 1)[0];
+      if (lost?.fam === "inversion" && !c.tox.some((x) => x.fam === "inversion")) c.inv = false;
+    } else {
+      c.abs.splice(rep.k, 1); c.cd.splice(rep.k, 1); c.uses.splice(rep.k, 1); c.abB.splice(rep.k, 1); c.stack.splice(rep.k, 1);
+    }
+  };
+
   const shop = (S: RSide, E: RSide, s: number) => {
     const t = S.turn;
     const P = AI[s];
     let rerolls = 0;
     for (let guard = 0; guard < 6; guard++) {
-      const buys: { f: ToxFamily; r: number; c: RCard; u: number; price: number }[] = [];
-      const free = S.cards.filter((c) => c.alive && c.abs.length + c.tox.length < SLOTS);
+      const buys: { f: ToxFamily; r: number; c: RCard; u: number; price: number; rep: Rep | null; what: string }[] = [];
+      const free = S.cards.filter((c) => c.alive);
       for (let k = 0; k < 3; k++) {
         const r = rollRarity(S.luck);
         const pool = byR[r].length ? byR[r] : byR[0];
@@ -1005,8 +1039,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         for (const c of free) {
           let u = utility(S, E, c, f, rr, t);
           if (u > 0) u *= P.fam[f.fam] ?? 1;
-          u -= P.priceW * price;
-          buys.push({ f, r: rr, c, u, price });
+          const sl = bestSlot(S, E, c, t, f);
+          u -= P.priceW * price + sl.loss;
+          buys.push({ f, r: rr, c, u, price, rep: sl.rep, what: sl.what });
         }
       }
       buys.sort((x, y) => y.u - x.u);
@@ -1040,7 +1075,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         const cc = cands;
         ch = decide({
           kind: "shop", side: s as 0 | 1, turn: t, n: nOpt, def: ch, feat: feats,
-          label: (i) => i < cc.length ? `Acheter ${cc[i].f.name} (${["C", "R", "E", "L"][cc[i].r]}, ${cc[i].price}) pour ${cc[i].c.d.name}` : i === iReroll ? `Relancer la boutique (${cost})` : "Passer (+10 Spamtons)",
+          label: (i) => i < cc.length ? `Acheter ${cc[i].f.name} (${["C", "R", "E", "L"][cc[i].r]}, ${cc[i].price}) pour ${cc[i].c.d.name}${cc[i].rep ? ` (remplace ${cc[i].what})` : ""}` : i === iReroll ? `Relancer la boutique (${cost})` : "Passer (+10 Spamtons)",
         });
       }
       if (ch < cands.length) {
@@ -1048,8 +1083,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         S.spam -= best.price;
         if (S.petit && !S.boughtOnce) S.spam += best.price;
         S.boughtOnce = true;
-        giveTox(S, best.c, best.f, best.r);
-        if (log) say(`🛒 ${s === 0 ? "A" : "B"} achète ${best.f.name} (${["C", "R", "E", "L"][best.r]}) pour ${best.c.d.name} (${best.price})`);
+        giveTox(S, best.c, best.f, best.r, best.rep);
+        if (log) say(`🛒 ${s === 0 ? "A" : "B"} achète ${best.f.name} (${["C", "R", "E", "L"][best.r]}) pour ${best.c.d.name} (${best.price})${best.rep ? ` — remplace ${best.what}` : ""}`);
         return;
       }
       if (ch === iReroll) { S.spam -= cost; rerolls++; if (log) say(`🔄 ${s === 0 ? "A" : "B"} relance la boutique (${cost})`); continue; }
@@ -1057,9 +1092,10 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       return;
     }
   };
-  const giveTox = (S: RSide, c: RCard, f: ToxFamily, r: number) => {
+  const giveTox = (S: RSide, c: RCard, f: ToxFamily, r: number, rp?: Rep | null) => {
     const tox: Tox = { fam: f.fam, r, v: f.vals[r] as number, el: f.el ?? -1 };
     if (c.frozen) breakIce(c, null); // « un nouveau Tox brise la glace »
+    if (rp) dropSlot(c, rp); // carte pleine : l'emplacement choisi est libéré
     if (tox.fam === "inversion") c.inv = true;
     if (tox.fam === "metamorph") metamorph(c, (c.hp / c.max) * 100);
     else if (tox.fam === "mystery") grantMystery(c);
@@ -1073,9 +1109,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const f = comp.tox.find((x) => x.fam === g.fam && (g.fam !== "heart" || x.el === g.el));
     if (!f || f.vals[g.r] === null) return;
     let best: RCard | null = null, bu = -1e9;
-    for (const c of S.cards) if (c.alive && c.abs.length + c.tox.length < SLOTS) { const u = utility(S, E, c, f, g.r, S.turn); if (u > bu) { bu = u; best = c; } }
-    if (!best) for (const c of S.cards) if (c.alive) { best = c; break; }
-    if (best) giveTox(S, best, f, g.r);
+    let bs: ReturnType<typeof bestSlot> | null = null;
+    for (const c of S.cards) if (c.alive) { const sl = bestSlot(S, E, c, S.turn, f); const u = utility(S, E, c, f, g.r, S.turn) - sl.loss; if (u > bu) { bu = u; best = c; bs = sl; } }
+    if (best) giveTox(S, best, f, g.r, bs?.rep);
   };
 
 
@@ -1117,14 +1153,16 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       }
       const cost = rerolls === 0 && S.casino ? 0 : 10 + 5 * rerolls;
       if (shopOpen) {
-        const free = S.cards.filter((c) => c.alive && c.abs.length + c.tox.length < SLOTS);
         offers.forEach((o, k) => {
           if (!o || S.spam < o.price) return;
-          for (const c of free) {
-            let u = utility(S, E, c, o.f, o.r, t);
-            if (u > 0) u *= P.fam[o.f.fam] ?? 1;
-            u -= P.priceW * o.price;
-            opts_.push({ ref: { tag: "buy", offer: k, card: c.i }, label: `Acheter ${o.f.name} (${["C", "R", "E", "L"][o.r]}, ${o.price}) pour ${c.d.name}`, u });
+          for (const c of S.cards) {
+            if (!c.alive) continue;
+            let u0 = utility(S, E, c, o.f, o.r, t);
+            if (u0 > 0) u0 *= P.fam[o.f.fam] ?? 1;
+            u0 -= P.priceW * o.price;
+            for (const sl of slotOpts(S, E, c, t, o.f)) {
+              opts_.push({ ref: sl.rep ? { tag: "buy", offer: k, card: c.i, rep: sl.rep } : { tag: "buy", offer: k, card: c.i }, label: `Acheter ${o.f.name} (${["C", "R", "E", "L"][o.r]}, ${o.price}) pour ${c.d.name}${sl.rep ? ` en remplaçant ${sl.rep.kind === "ab" ? "la capacité" : "le passif"} « ${sl.what} »` : ""}`, u: u0 - sl.loss });
+            }
           }
         });
         if (rerolls < 6 && S.spam >= cost) opts_.push({ ref: { tag: "reroll" }, label: `Relancer la boutique (${cost})` });
@@ -1161,8 +1199,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         S.spam -= of.price;
         if (S.petit && !S.boughtOnce) S.spam += of.price;
         S.boughtOnce = true;
-        giveTox(S, c, of.f, of.r);
-        if (log) say(`🛒 ${who} achète ${of.f.name} (${["C", "R", "E", "L"][of.r]}) pour ${c.d.name} (${of.price})`);
+        const lostName = ref.rep ? (ref.rep.kind === "ab" ? c.abs[ref.rep.k]?.name : (toxFamOf(c.tox[ref.rep.k])?.name ?? c.tox[ref.rep.k]?.fam)) : "";
+        giveTox(S, c, of.f, of.r, ref.rep);
+        if (log) say(`🛒 ${who} achète ${of.f.name} (${["C", "R", "E", "L"][of.r]}) pour ${c.d.name} (${of.price})${ref.rep ? ` — remplace ${lostName}` : ""}`);
         shopOpen = false;
       } else if (ref.tag === "reroll") {
         S.spam -= cost; rerolls++;
