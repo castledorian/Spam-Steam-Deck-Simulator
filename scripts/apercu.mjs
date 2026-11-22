@@ -21,8 +21,14 @@ const server = createServer(async (req, res) => {
 await mkdir(OUT, { recursive: true });
 const report = [];
 const browser = await chromium.launch();
-const PAGES = ["/", "/cartes/", "/collection/", "/simulateur/", "/meta/", "/tox/", "/patchs/"];
-const VIEWS = { telephone: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, pc: { width: 1440, height: 900 } };
+const PAGES = ["/", "/cartes/", "/collection/", "/simulateur/", "/meta/", "/impact/", "/analyse/", "/tox/", "/patchs/"];
+const VIEWS = { telephone: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 }, pc: { width: 1440, height: 900 } };
+/** Miniatures JPEG écrites dans le journal (base64), lisibles sans télécharger d'artefact. */
+const thumbs = [];
+const thumb = async (page, name, full = false) => {
+  const buf = await page.screenshot({ type: "jpeg", quality: 50, fullPage: full });
+  thumbs.push(`=====IMG ${name}=====\n${buf.toString("base64")}\n=====FIN=====`);
+};
 
 for (const [vname, vp] of Object.entries(VIEWS)) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, deviceScaleFactor: vp.deviceScaleFactor ?? 1, locale: "fr-FR" });
@@ -42,13 +48,40 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
     report.push(`[${vname}] ${p} : largeur ${over.sw}/${over.w}${over.sw > over.w + 1 ? " ⚠ DÉBORDEMENT" : ""}${over.bad.length ? " · " + over.bad.join(" | ") : ""}`);
     const name = p === "/" ? "accueil" : p.replace(/\//g, "");
     await page.screenshot({ path: `${OUT}/${vname}-${name}.png`, fullPage: false });
+    if (process.env.MINIATURES) await thumb(page, `${vname}-${name}`, vname === "telephone" && ["cartes", "impact", "meta"].includes(name));
     if (vname === "telephone") await page.screenshot({ path: `${OUT}/${vname}-${name}-complet.png`, fullPage: true, clip: undefined }).catch(() => {});
   }
   // fiche de carte
   await page.goto("http://localhost:4173/cartes/", { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
   const first = page.locator(".card-cell button").first();
-  if (await first.count()) { await first.click(); await page.waitForTimeout(800); await page.screenshot({ path: `${OUT}/${vname}-fiche-carte.png` }); }
+  if (await first.count()) { await first.click(); await page.waitForTimeout(800); await page.screenshot({ path: `${OUT}/${vname}-fiche-carte.png` }); if (process.env.MINIATURES) await thumb(page, `${vname}-fiche-carte`); }
+  await ctx.close();
+}
+
+// analyse de partie (téléphone) : méta #1 contre méta #2, profondeur rapide
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => report.push(`[analyse] erreur JS : ${e.message}`));
+  await page.goto("http://localhost:4173/analyse/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const sel = page.locator("select").filter({ hasText: "Deck de la méta" });
+  if (await sel.count() >= 2) {
+    await sel.nth(0).selectOption({ index: 1 });
+    await sel.nth(1).selectOption({ index: 2 });
+    const t0 = Date.now();
+    await page.getByRole("button", { name: /Analyser une partie/ }).click();
+    try {
+      await page.getByText("Déroulé").waitFor({ timeout: 600000 });
+      report.push(`[analyse] terminée en ${Math.round((Date.now() - t0) / 1000)} s`);
+      const head = await page.locator(".panel").filter({ hasText: "décisions analysées" }).first().innerText();
+      report.push(`[analyse] ${head.replace(/\s+/g, " ")}`);
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      report.push(`[analyse] débordement horizontal : ${over} px`);
+      if (process.env.MINIATURES) await thumb(page, "telephone-analyse-resultat", true);
+    } catch (e) { report.push(`[analyse] ÉCHEC : ${e.message}`); }
+  } else report.push("[analyse] pas de méta disponible pour choisir les decks");
   await ctx.close();
 }
 
@@ -82,3 +115,4 @@ await browser.close();
 server.close();
 await writeFile(`${OUT}/rapport.txt`, report.join("\n") + "\n");
 console.log(report.join("\n"));
+if (thumbs.length) console.log(thumbs.join("\n"));
