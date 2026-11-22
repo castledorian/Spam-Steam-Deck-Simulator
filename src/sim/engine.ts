@@ -256,9 +256,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     c.uses = d.abilities.map((a) => a.uses);
     c.abB = d.abilities.map(() => 0);
     c.stack = d.abilities.map(() => 0);
-    // 3 emplacements partagés : les passifs achetés conservés après une transformation doivent tenir (les plus récents d'abord)
-    const room = Math.max(0, SLOTS - d.abilities.length - d.skills.length);
-    c.tox = d.skills.map((t) => ({ ...t })).concat(room > 0 ? keepBought.slice(-room) : []);
+    // Métamorphe : tous les Tox achetés restent, la carte est remise à zéro (nouveaux PV, capacités et passifs d'origine)
+    c.tox = d.skills.map((t) => ({ ...t })).concat(keepBought);
     c.res = d.res.slice();
     c.elCur = d.element;
   };
@@ -469,7 +468,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (t.tk === "Resilience" && t.hp < t.max * 0.5) r += 25;
     return clampRes(r);
   };
-  interface HitOpts { noPts?: boolean; noRes?: boolean }
+  /** Bouclier : réduit la première attaque reçue chaque tour, quelle qu'elle soit (zone, voisins…). */
+  const splashShield = (t: RCard): number => { const sh = tx(t, "shield"); if (!sh || t.shieldUsed) return 1; t.shieldUsed = true; return 1 - sh.v / 100; };
+  interface HitOpts { noPts?: boolean; noRes?: boolean; bonus?: number }
   const dealHit = (S: RSide, E: RSide, c: RCard, tgt: RCard, base: number, el: number, crit: boolean, critM: number, brut: boolean, mult: number, o: HitOpts = {}): number => {
     if (!tgt.alive) return 0;
     const pts = o.noPts || el < 0 || el > 6 ? 0 : S.pts[el] * mult;
@@ -481,7 +482,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     }
     if (brut && E.taunt === tgt) E.taunt = null; // Brut détruit les provocations des ennemis ciblés
     const res = brut || o.noRes || el >= 6 || el < 0 ? 0 : effRes(tgt, el);
-    const raw = Math.max(0, base) * (1 + 0.1 * pts) * (crit ? critM : 1) * (1 + berserk(S)) * shield * (1 - res / 100);
+    const raw = (Math.max(0, base) * (1 + 0.1 * pts) + (o.bonus ?? 0)) * (crit ? critM : 1) * (1 + berserk(S)) * shield * (1 - res / 100);
     let dmg = Math.max(0, Math.floor(raw));
     if (tgt.chanceVit && rng() < tgt.chanceVit) { healCard(tgt, dmg, null); return 0; }
     if (tgt.frozen) breakIce(tgt, c);
@@ -500,15 +501,15 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (c.steal && E.spam > 0 && enemyHit) { const st = Math.min(E.spam, c.steal); E.spam -= st; S.spam += st; }
     if (tgt.alive && !imm) {
       const fr = tx(c, "freeze"); if (fr) freeze(tgt, fr.v, c);
-      const po = tx(c, "poison"); if (po) { tgt.poison.push({ pct: po.v, t: 3 }); tgt.hidden = false; }
+      const po = tx(c, "poison"); if (po) { const cur = tgt.poison[0]; tgt.poison = [{ pct: Math.max(po.v, cur?.pct ?? 0), t: 3 + (cur?.t ?? 0) }]; tgt.hidden = false; }
       if (tx(c, "eternity")) changeCd(tgt, c.inv ? -1 : 1, enemyHit);
       if (tx(c, "temporality") && c.inv) changeCd(tgt, 1, enemyHit);
       if (tx(c, "vanish") && !tgt.insVan && tgt.tox.length) { const lost = tgt.tox.pop()!; if (log) say(`  ⌫ Disparition : ${nm(tgt)} perd « ${lost.fam} »`); }
     }
     const aoe = tx(c, "aoe");
     if (aoe) for (const di of [-1, 1]) {
-      const n = sides[tgt.side].cards[tgt.i + di];
-      if (n && n.alive && n !== tgt) rawDamage(n, (dealt * aoe.v) / 100, c);
+      const n = sides[tgt.side].cards.find((y) => y.slot === tgt.slot + di);
+      if (n && n.alive && n !== tgt) rawDamage(n, ((dealt * aoe.v) / 100) * splashShield(n), c);
     }
     // effets de la cible
     if (enemyHit) {
@@ -592,6 +593,23 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     }
     return cand[bi];
   };
+  /** Avalement : un allié à sacrifier. Utile quand il est bas en PV pour déclencher ses effets de mort (Bomba, Phénix, Métamorphe, Vengeance, Vengeur des autres cartes). */
+  const bestSacrifice = (S: RSide, c: RCard): RCard | null => {
+    let best: RCard | null = null, bs = 0.12;
+    const team = S.cards.filter((x) => x.alive).reduce((p, x) => p + rate(S, x), 0) || 1;
+    for (const x of S.cards) {
+      if (!x.alive || x === c) continue;
+      const frac = x.hp / x.max;
+      const rev = (!x.phxUsed && !!tx(x, "phoenix")) || (!!x.resurrect && !x.revived);
+      if (frac > 0.4 && !rev) continue;
+      let v = (rev ? 0.35 : 0) + (tx(x, "bomba") ? 0.25 : 0) + (tx(x, "revenge") ? 0.2 : 0) + 0.1 * Math.min(1, x.max / c.max);
+      for (const o of S.cards) if (o.alive && o !== x && tx(o, "avenger")) v += 0.1;
+      v += 0.02 * S.cards.filter((o) => o.alive && tx(o, "graveyard")).length;
+      v -= frac * (rate(S, x) / team) * (rev ? 0.3 : 1);
+      if (v > bs) { bs = v; best = x; }
+    }
+    return best;
+  };
   const bestAlly = (S: RSide, pred: (x: RCard) => boolean = () => true): RCard | null => {
     let b: RCard | null = null, bs = -1;
     for (const x of S.cards) if (x.alive && pred(x)) { const sc = x.d.threat; if (sc > bs) { bs = sc; b = x; } }
@@ -670,9 +688,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         if (!a.aoe && !a.randEnemy && !a.randField) main = forced && forced.alive ? forced : pickTarget(S, E, c, a, brut, acts);
         if (main) enemies.push(main);
         const randomTarget = (): RCard | undefined => {
-          if (a.randField) return pick(allCards().filter((x) => x.alive && !(x.side !== c.side && tx(x, "camo") && !x.revealed)));
-          const tt = brut ? null : tauntOf(E);
-          return tt ?? pick(alive(E).filter((x) => !(tx(x, "camo") && !x.revealed))) ?? pick(alive(E));
+          // cibles aléatoires : la provocation et le camouflage ne protègent pas
+          if (a.randField) return pick(allCards().filter((x) => x.alive));
+          return pick(alive(E));
         };
         for (const x of acts) {
           if (!isDmgEffect(x.effect) && x.effect !== "DamageOpponentHPMAX" && x.effect !== "DamageCasterSpamton") continue;
@@ -683,6 +701,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
             let el = x.el;
             const o: HitOpts = {};
             if (x.effect === "DamageWithCardElement") el = c.elCur;
+            // hypothèse : « dégâts bonus selon les PV manquants » = 50 % des PV manquants (valeur des patchs 1.21 à 1.27), hors bonus élémentaires
+            if (x.effect === "DamageCasterHP") o.bonus = 0.5 * Math.max(0, c.max - c.hp);
             if (x.effect === "DamageOnShield2" && tauntOf(sides[t.side]) === t) base *= 2;
             if (x.effect === "DamageOpponentHPMAX") { base = (t.max * x.min) / 100; o.noPts = true; }
             if (x.effect === "DamageCasterSpamton") { base = S.spam; el = -1; o.noPts = true; o.noRes = true; }
@@ -696,7 +716,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         }
         if (a.textAoe && main) for (const di of [-1, 1]) {
           const n = E.cards.find((y) => y.slot === main!.slot + di);
-          if (n && n.alive) rawDamage(n, (dealtTotal * a.textAoe) / 100, c);
+          if (n && n.alive) rawDamage(n, ((dealtTotal * a.textAoe) / 100) * splashShield(n), c);
         }
         if (a.textVamp && dealtTotal > 0) healCard(c, (dealtTotal * a.textVamp) / 100, c);
         for (const t of hitTargets) {
@@ -788,7 +808,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
           const healed = healCard(t, amt, c);
           if (log) say(`  ${nm(c)} soigne ${nm(t)} +${Math.floor(healed)}`);
           const aoe = tx(c, "aoe");
-          if (aoe) for (const di of [-1, 1]) { const n = S.cards[t.i + di]; if (n && n.alive) healCard(n, (amt * aoe.v) / 100, c); }
+          if (aoe) for (const di of [-1, 1]) { const n = S.cards.find((y) => y.slot === t.slot + di); if (n && n.alive) healCard(n, (amt * aoe.v) / 100, c); }
           const fr = tx(c, "freeze"); if (fr && t !== c) freeze(t, fr.v, c); // « les dégâts et les soins de cette carte gèlent leur cible »
           if (tx(c, "temporality") && !c.inv) changeCd(t, -1, false);
           break;
@@ -887,7 +907,11 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
           break;
         }
         case "HealCasterWithOppHPMAX": {
-          if (a.absorbAlly) break;
+          if (a.absorbAlly) {
+            const v = bestSacrifice(S, c);
+            if (v) { c.max += v.max; if (log) say(`  ${nm(c)} absorbe sa propre carte ${nm(v)}`); kill(v, c); }
+            break;
+          }
           const t = alive(E).filter((e) => !immune(e)).sort((p, q) => q.max - p.max)[0];
           if (t) { c.max += t.max; if (log) say(`  ${nm(c)} absorbe ${nm(t)}`); kill(t, c); }
           break;
@@ -925,7 +949,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (c.cd[ai] > 0 || (a.uses > 0 && c.uses[ai] <= 0)) return false;
     for (const k of a.cost) if (S.pts[k.el] < k.amt) return false;
     if (a.hpCost && c.hp <= a.hpCost) return false;
-    if (a.absorbAlly) return false; // Avalement : sacrifier un allié n'est jamais joué par l'IA
+    if (a.absorbAlly && !bestSacrifice(S, c)) return false; // Avalement : seulement si un allié vaut d'être sacrifié
     if (a.needsTaunt && !(S.taunt && S.taunt.alive)) return false;
     const effs = a.actions.map((x) => x.effect);
     if (effs.includes("Resurection") && !S.dead.length) return false;
@@ -1029,12 +1053,17 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (a.uses > 0 && c.uses[k] <= 0) return 0;
     let team = 0; for (const x of alive(S)) team += rate(S, x);
     const share = rate(S, c) / (team || 1);
-    const nDmg = c.abs.filter((x) => x.hasDmg).length;
-    const w = a.engine ? 0.6 : a.hasDmg ? 0.1 + (0.8 * share) / Math.max(1, nDmg) : a.hasHeal ? 0.2 : 0.12;
-    return a.uses > 0 ? w * (0.3 + 0.7 * (c.uses[k] / a.uses)) : w;
+    // une capacité vaut sa part des dégâts de la carte : la moins efficace (souvent celle qui fait le moins de dégâts) est sacrifiée en premier
+    const dmgOf = (x: CAbility) => x.actions.filter((y) => isDmgEffect(y.effect)).reduce((p, y) => p + avgOf(y), 0);
+    const tot = c.abs.reduce((p, x) => p + (x.hasDmg ? dmgOf(x) : 0), 0);
+    const w = a.engine ? 0.6 : a.hasDmg ? 0.1 + 0.8 * share * (tot > 0 ? dmgOf(a) / tot : 1) : a.hasHeal ? 0.2 : 0.12;
+    return w;
   };
   /** Emplacements où un Tox peut aller sur cette carte, avec la valeur perdue (0 pour un emplacement libre). */
   const slotOpts = (S: RSide, E: RSide, c: RCard, t: number, f: ToxFamily): { rep: Rep | null; loss: number; what: string }[] => {
+    // un Tox de la même famille déjà posé : l'achat le remplace (rareté supérieure) au lieu d'occuper un autre emplacement
+    const dup = f.fam === "metamorph" || f.fam === "mystery" ? -1 : c.tox.findIndex((x) => x.fam === f.fam && (f.fam !== "heart" || x.el === f.el));
+    if (dup >= 0) { const x = c.tox[dup]; const fx = toxFamOf(x); return [{ rep: { kind: "tox", k: dup }, loss: fx ? Math.max(0, utility(S, E, c, fx, x.r, t, x.v)) : 0, what: fx?.name ?? x.fam }]; }
     if (f.fam === "metamorph" || c.abs.length + c.tox.length < SLOTS) return [{ rep: null, loss: 0, what: "" }];
     const out: { rep: Rep | null; loss: number; what: string }[] = [];
     c.tox.forEach((x, k) => {
@@ -1063,7 +1092,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       const free = S.cards.filter((c) => c.alive);
       for (let k = 0; k < 3; k++) {
         const r = rollRarity(S.luck);
-        const pool = byR[r].length ? byR[r] : byR[0];
+        const pool0 = byR[r].length ? byR[r] : byR[0];
+        const pool = pool0.filter((f) => f.fam + (f.el ?? "") !== gBan);
+        if (!pool.length) continue;
         const f = pool[Math.floor(rng() * pool.length)];
         const rr = f.vals[r] === null ? 0 : r;
         const price = f.prices[rr];
@@ -1148,7 +1179,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
 
 
   /** Tour « libre » : la boutique (tours pairs) s'ouvre en premier et doit être réglée (acheter ou passer, relances et bannissement possibles), puis les capacités se lancent dans l'ordre voulu jusqu'à « Terminer le tour ». Renvoie true si la partie est finie. */
-  const banned: Set<string>[] = [new Set(), new Set()];
+  /** Un seul bannissement par partie (un des deux joueurs) : la famille disparaît de toutes les boutiques, pour les deux. */
+  let gBan: string | null = null;
   const freeTurn = (S: RSide, E: RSide, s: number): boolean => {
     const t = S.turn;
     const P = AI[s];
@@ -1157,7 +1189,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     const rollOffer = (): Off | null => {
       for (let g = 0; g < 30; g++) {
         const r = rollRarity(S.luck);
-        const pool = (byR[r].length ? byR[r] : byR[0]).filter((f) => !banned[s].has(f.fam + (f.el ?? "")));
+        const pool = (byR[r].length ? byR[r] : byR[0]).filter((f) => f.fam + (f.el ?? "") !== gBan);
         if (!pool.length) continue;
         const f = pool[Math.floor(rng() * pool.length)];
         const rr = f.vals[r] === null ? 0 : r;
@@ -1168,7 +1200,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     };
     let shopOpen = t % 2 === 0;
     let offers: (Off | null)[] = shopOpen ? [rollOffer(), rollOffer(), rollOffer()] : [];
-    let rerolls = 0, banUsed = false;
+    let rerolls = 0;
     const nc = new Array<number>(32).fill(0);
     for (let guard = 0; guard < 120; guard++) {
       if (!anyAlive(E)) return true;
@@ -1199,7 +1231,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         });
         if (rerolls < 6 && S.spam >= cost) opts_.push({ ref: { tag: "reroll" }, label: `Relancer la boutique (${cost})` });
         opts_.push({ ref: { tag: "skip" }, label: "Passer la boutique (+10 Spamtons)" });
-        if (!banUsed) offers.forEach((o, k) => { if (o) opts_.push({ ref: { tag: "ban", offer: k }, label: `Bannir la famille ${o.f.name}` }); });
+        if (gBan === null) offers.forEach((o, k) => { if (o) opts_.push({ ref: { tag: "ban", offer: k }, label: `Bannir la famille ${o.f.name}` }); });
       }
       if (!shopOpen) opts_.push({ ref: { tag: "end" }, label: "Terminer le tour" });
       if (!opts_.length || (!shopOpen && opts_.length === 1)) break; // plus rien à faire
@@ -1214,7 +1246,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       }
       if (def < 0) def = opts_.findIndex((o) => o.ref.tag === (shopOpen ? "skip" : "end"));
       const shopView: ShopView | null = shopOpen ? {
-        rerollCost: cost, banUsed,
+        rerollCost: cost, banUsed: gBan !== null,
         offers: offers.map((o) => o && { fam: o.f.fam, name: o.f.name, group: o.f.group, el: o.f.el ?? -1, r: o.r, price: o.price, desc: o.f.desc, value: o.f.vals[o.r] ?? 0, affordable: S.spam >= o.price }),
       } : null;
       const snapshot = opts_;
@@ -1244,10 +1276,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         if (log) say(`⏭ ${who} passe la boutique (+10 Spamtons)`);
       } else if (ref.tag === "ban") {
         const of = offers[ref.offer]!;
-        banned[s].add(of.f.fam + (of.f.el ?? ""));
-        banUsed = true;
-        offers = offers.map((x) => (x && banned[s].has(x.f.fam + (x.f.el ?? "")) ? rollOffer() : x));
-        if (log) say(`🚫 ${who} bannit la famille ${of.f.name} pour le reste de la partie`);
+        gBan = of.f.fam + (of.f.el ?? "");
+        offers = offers.map((x) => (x && x.f.fam + (x.f.el ?? "") === gBan ? rollOffer() : x));
+        if (log) say(`🚫 ${who} bannit la famille ${of.f.name} : elle disparaît des boutiques des deux joueurs pour toute la partie`);
       }
     }
     return false;

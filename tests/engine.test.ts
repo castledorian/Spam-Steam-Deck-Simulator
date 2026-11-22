@@ -286,10 +286,13 @@ test("invariants : 3 emplacements max, PV bornés, Spamtons négatifs seulement 
   let over = 0, frames = 0;
   for (let i = 0; i < 300; i++) {
     const fr: import("../src/sim/engine").Frame[] = []; const d: [DeckSpec, DeckSpec] = [pick(), pick()];
-    playMatch(comp, d, mulberry32(i), { frames: fr, log: [], first: (i & 1) as 0 | 1 });
+    const lg: string[] = [];
+    playMatch(comp, d, mulberry32(i), { frames: fr, log: lg, first: (i & 1) as 0 | 1 });
+    // Métamorphe conserve tous les Tox achetés : la limite de 3 emplacements ne vaut plus après une transformation
+    const morphed = lg.some((l) => /se transforme en/.test(l));
     for (const f of fr) {
       frames++;
-      f.board.cards.forEach((side) => side.forEach((c) => { if (c.abilities.length + c.tox.length > 3) over++; assert.ok(c.hp >= 0 && c.hp <= c.max + 0.5, `PV hors bornes : ${c.name}`); }));
+      f.board.cards.forEach((side) => side.forEach((c) => { if (!morphed && c.abilities.length + c.tox.length > 3) over++; assert.ok(c.hp >= 0 && c.hp <= c.max + 0.5, `PV hors bornes : ${c.name}`); }));
       f.board.spam.forEach((sp, si) => { if (sp < -0.5) assert.ok(d[1 - si].cards.some((n, j) => debt.has(n) && /Dette/.test(comp.byNum.get(n)!.talents.find((t) => t.slot === d[1 - si].tal![j])?.id ?? "")), "Spamtons négatifs sans talent Dette actif chez l'adversaire"); });
     }
   }
