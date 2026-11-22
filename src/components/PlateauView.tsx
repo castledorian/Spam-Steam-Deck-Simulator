@@ -118,7 +118,7 @@ function ShopPanel({ shop, armed, setArmed, onReroll, onSkip, onBan, canBan, spa
         <h2 className="font-display text-xl text-amber-200">Boutique de Tox</h2>
         <span className="rounded bg-amber-300/15 px-2 py-0.5 text-sm text-amber-100">💰 {spam} Spamtons</span>
       </div>
-      <p className="text-xs text-white/55">Choisissez un Tox, puis la carte de votre deck qui le reçoit (elle doit avoir un emplacement libre). Un seul achat par boutique.</p>
+      <p className="text-xs text-white/55">Choisissez un Tox, puis la carte de votre deck qui le reçoit (elle doit avoir un emplacement libre). Un seul achat par boutique, et elle se règle avant de lancer vos capacités.</p>
       <div className="grid gap-2 sm:grid-cols-3">
         {shop.offers.map((o, k) => o ? (
           <div key={k} className={`flex flex-col gap-1 rounded-xl border p-2 text-left text-xs transition ${armed === k ? "bg-white/12" : "bg-black/25"} ${o.affordable ? "" : "opacity-50"}`} style={{ borderColor: armed === k ? "#fff" : RARITY_COLOR[o.r] + "99" }}>
@@ -360,12 +360,12 @@ export function PlateauView() {
                 <div className="panel flex flex-wrap items-center justify-between gap-2 p-3">
                   <div>
                     <h2 className="font-display text-xl text-white">À vous de jouer <span className="text-sm text-white/45">· tour {pending.turn}</span></h2>
-                    <p className="text-xs text-white/55">Touchez une capacité <span className="text-emerald-300">verte</span> de votre deck pour la lancer{pending.shop ? ", ou une offre de la boutique" : ""}. Terminez le tour quand vous avez fini.</p>
+                    <p className="text-xs text-white/55">{pending.shop ? "La boutique s'ouvre au début du tour : achetez un Tox ou passez pour débloquer vos capacités." : <>Touchez une capacité <span className="text-emerald-300">verte</span> de votre deck pour la lancer, puis terminez le tour.</>}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-white/65">
                     <label className="flex items-center gap-1.5"><input type="checkbox" checked={hint} onChange={(e) => setHint(e.target.checked)} /> Conseil de l&apos;IA</label>
                     <label className="flex items-center gap-1.5"><input type="checkbox" checked={chrono} onChange={(e) => setChrono(e.target.checked)} /> Chrono{chrono ? ` · ${left} s` : ""}</label>
-                    <button className="btn btn-primary !px-4 !py-2 text-sm" disabled={endIdx < 0} onClick={() => answer(endIdx)}>Terminer le tour</button>
+                    <button className="btn btn-primary !px-4 !py-2 text-sm" disabled={endIdx < 0} onClick={() => answer(endIdx)}>{endIdx < 0 ? "Boutique d'abord" : "Terminer le tour"}</button>
                   </div>
                 </div>
               </div>

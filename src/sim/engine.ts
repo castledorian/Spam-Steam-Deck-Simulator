@@ -1079,7 +1079,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   };
 
 
-  /** Tour « libre » : capacités et boutique dans l'ordre voulu, jusqu'à « Terminer le tour ». Renvoie true si la partie est finie. */
+  /** Tour « libre » : la boutique (tours pairs) s'ouvre en premier et doit être réglée (acheter ou passer, relances et bannissement possibles), puis les capacités se lancent dans l'ordre voulu jusqu'à « Terminer le tour ». Renvoie true si la partie est finie. */
   const banned: Set<string>[] = [new Set(), new Set()];
   const freeTurn = (S: RSide, E: RSide, s: number): boolean => {
     const t = S.turn;
@@ -1106,7 +1106,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       if (!anyAlive(E)) return true;
       if (!anyAlive(S)) return true;
       const opts_: { ref: Ref; label: string; u?: number; pr?: number; n?: number }[] = [];
-      for (const c of S.cards) {
+      // la boutique s'ouvre au début du tour : elle se règle d'abord (acheter ou passer), ensuite seulement les capacités
+      if (!shopOpen) for (const c of S.cards) {
         if (!c.alive || c.frozen) continue;
         for (let ai = 0; ai < c.abs.length; ai++) {
           const n = nc[c.i * 8 + ai];
@@ -1130,8 +1131,8 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
         opts_.push({ ref: { tag: "skip" }, label: "Passer la boutique (+10 Spamtons)" });
         if (!banUsed) offers.forEach((o, k) => { if (o) opts_.push({ ref: { tag: "ban", offer: k }, label: `Bannir la famille ${o.f.name}` }); });
       }
-      opts_.push({ ref: { tag: "end" }, label: "Terminer le tour" });
-      if (opts_.length === 1) break; // plus rien à faire
+      if (!shopOpen) opts_.push({ ref: { tag: "end" }, label: "Terminer le tour" });
+      if (!opts_.length || (!shopOpen && opts_.length === 1)) break; // plus rien à faire
       // conseil : meilleur achat s'il dépasse le seuil de l'IA, sinon la capacité la plus prioritaire, sinon passer / finir
       const thr = P.shopThr * Math.max(0.25, 1 - t / P.shopDecay);
       let def = -1, bu = -1e9;

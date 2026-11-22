@@ -176,8 +176,9 @@ test("Malédiction aquatique (Zombie Floral) : 2 × Disparition, un passif retir
   assert.ok(perCard >= 2, "une même carte doit perdre 2 passifs");
 });
 
-test("tour libre (Plateau) : boutique ouverte aux tours pairs, bannir retire la famille, un seul achat, fin de tour", () => {
+test("tour libre (Plateau) : boutique réglée en premier aux tours pairs, bannir retire la famille, un seul achat, fin de tour", () => {
   const bannedFam: string[] = [];
+  const shopDone = new Set<number>();
   let sawBuyAfterBuy = false, bought = false, lastTurn = 0, offersAfterBan = 0, shops = 0;
   const choose = (d: import("../src/sim/engine").Decision) => {
     if (d.side !== 0) return d.def;
@@ -185,7 +186,7 @@ test("tour libre (Plateau) : boutique ouverte aux tours pairs, bannir retire la 
     if (d.turn !== lastTurn) { lastTurn = d.turn; bought = false; }
     const refs = Array.from({ length: d.n }, (_, i) => d.ref!(i));
     if (d.shop) {
-      shops++;
+      shops++; shopDone.add(d.turn);
       assert.equal(d.turn % 2, 0, "la boutique n'ouvre que les tours pairs");
       for (const o of d.shop.offers) if (o && bannedFam.includes(o.fam)) offersAfterBan++;
       if (bought && refs.some((r) => r?.tag === "buy")) sawBuyAfterBuy = true;
@@ -196,6 +197,7 @@ test("tour libre (Plateau) : boutique ouverte aux tours pairs, bannir retire la 
       return refs.findIndex((r) => r?.tag === "skip");
     }
     assert.ok(refs.some((r) => r?.tag === "end"));
+    assert.ok(!(d.turn % 2 === 0 && !shopDone.has(d.turn)), "tour pair : la boutique doit être réglée avant les capacités");
     return refs.findIndex((r) => r?.tag === "cast") >= 0 ? refs.findIndex((r) => r?.tag === "cast") : d.def;
   };
   const r = playMatch(comp, [deck(["Chouette Polychrome", "Esprit Feu", "Esprit Eau", "Esprit Terre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(7), { choose, free: 0 });
