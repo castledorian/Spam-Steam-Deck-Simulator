@@ -84,9 +84,9 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
     await page.waitForTimeout(800);
     let n = 0, shot = false, sawShop = false;
     for (; n < 80; n++) {
-      if (!shot && (await page.getByText("Boutique de Tox").count())) {
+      if (!shot && (await page.getByRole("heading", { name: "Boutique de Tox" }).count())) {
         sawShop = true; shot = true;
-        await page.getByText("Boutique de Tox").first().scrollIntoViewIfNeeded();
+        await page.getByRole("heading", { name: "Boutique de Tox" }).first().scrollIntoViewIfNeeded();
         if (process.env.MINIATURES) await thumb(page, "telephone-plateau-boutique", false);
       }
       const pulse = page.locator("button.animate-pulse");
