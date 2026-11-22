@@ -158,25 +158,26 @@ export function AnalysisView() {
         <Picker label="Deck B" color="#ff9a7a" deck={b} setDeck={setB} />
       </div>
 
-      <div className="panel flex flex-wrap items-center gap-3 p-3 text-sm">
-        <label className="flex items-center gap-2">Profondeur
-          <select className="input !w-auto" value={depth} onChange={(e) => setDepth(+e.target.value)} disabled={busy}>
-            {DEPTH.map((x, i) => <option key={i} value={i}>{x.l} ({x.r * 2}+ fins de partie par option) · {x.info}</option>)}
+      <div className="panel grid gap-3 p-3 text-sm sm:flex sm:flex-wrap sm:items-center">
+        <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">Profondeur
+          <select className="input w-full sm:!w-auto" value={depth} onChange={(e) => setDepth(+e.target.value)} disabled={busy}>
+            {DEPTH.map((x, i) => <option key={i} value={i}>{x.l} · {x.info}</option>)}
           </select>
         </label>
-        <label className="flex items-center gap-2">Joueurs analysés
-          <select className="input !w-auto" value={who} onChange={(e) => setWho(e.target.value as typeof who)} disabled={busy}>
-            <option value="both">Les deux</option><option value="a">Deck A seulement (B = IA rapide)</option>
+        <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">Joueurs analysés
+          <select className="input w-full sm:!w-auto" value={who} onChange={(e) => setWho(e.target.value as typeof who)} disabled={busy}>
+            <option value="both">Les deux</option><option value="a">Deck A seulement</option>
           </select>
         </label>
-        <label className="flex items-center gap-2">Commence
-          <select className="input !w-auto" value={first} onChange={(e) => setFirst(e.target.value as typeof first)} disabled={busy}>
+        <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">Commence
+          <select className="input w-full sm:!w-auto" value={first} onChange={(e) => setFirst(e.target.value as typeof first)} disabled={busy}>
             <option value="rand">au hasard</option><option value="a">Deck A</option><option value="b">Deck B</option>
           </select>
         </label>
         <button className="btn btn-primary" disabled={!ok || busy} onClick={() => void run()}>{busy ? "Analyse…" : "▶ Analyser une partie"}</button>
         {!ok && <span className="text-xs text-amber-200">Choisissez 4 cartes différentes pour chaque deck{meta ? " (ou un deck de la méta)" : ""}.</span>}
         {busy && <span className="text-xs text-white/60">{prog} décisions évaluées…</span>}
+        <p className="text-[11px] text-white/45 sm:basis-full">Profondeur : {DEPTH[depth].r * 2} fins de partie ou plus par option testée. Si seul le deck A est analysé, le deck B est joué par l&apos;IA rapide.</p>
       </div>
       {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
 
