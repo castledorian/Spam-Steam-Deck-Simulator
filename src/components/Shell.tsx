@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/simulateur", label: "Simulateur" },
   { href: "/meta", label: "Méta & Tier list" },
   { href: "/impact", label: "Impact" },
+  { href: "/plateau", label: "Plateau" },
   { href: "/analyse", label: "Analyse de partie" },
   { href: "/tox", label: "Tox & Talents" },
   { href: "/patchs", label: "Patchs" },

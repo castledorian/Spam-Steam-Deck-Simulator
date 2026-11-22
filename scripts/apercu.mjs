@@ -21,7 +21,7 @@ const server = createServer(async (req, res) => {
 await mkdir(OUT, { recursive: true });
 const report = [];
 const browser = await chromium.launch();
-const PAGES = ["/", "/cartes/", "/collection/", "/simulateur/", "/meta/", "/impact/", "/analyse/", "/tox/", "/patchs/"];
+const PAGES = ["/", "/cartes/", "/collection/", "/simulateur/", "/meta/", "/impact/", "/plateau/", "/analyse/", "/tox/", "/patchs/"];
 const VIEWS = { telephone: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 }, pc: { width: 1440, height: 900 } };
 /** Miniatures JPEG écrites dans le journal (base64), lisibles sans télécharger d'artefact. */
 const thumbs = [];
@@ -56,6 +56,41 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
   await page.waitForTimeout(1000);
   const first = page.locator(".card-cell button").first();
   if (await first.count()) { await first.click(); await page.waitForTimeout(800); await page.screenshot({ path: `${OUT}/${vname}-fiche-carte.png` }); if (process.env.MINIATURES) await thumb(page, `${vname}-fiche-carte`); }
+  await ctx.close();
+}
+
+// plateau (téléphone) : match bot contre bot puis partie jouée
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => report.push(`[plateau] erreur JS : ${e.message}`));
+  await page.goto("http://localhost:4173/plateau/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const sel = page.locator("select").filter({ hasText: "Deck de la méta" });
+  if (await sel.count() >= 2) {
+    await sel.nth(0).selectOption({ index: 1 });
+    await sel.nth(1).selectOption({ index: 2 });
+    await page.getByRole("button", { name: /Lancer le match/ }).click();
+    await page.waitForTimeout(4000);
+    const over = async () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    report.push(`[plateau] bots : débordement ${await over()} px, tuiles ${await page.locator("button[aria-label]").count()}`);
+    if (process.env.MINIATURES) await thumb(page, "telephone-plateau-bots", false);
+    await page.getByRole("button", { name: "Fin", exact: true }).click();
+    report.push(`[plateau] bots : fin de partie ${(await page.getByText(/Victoire du|Égalité/).count()) > 0 ? "affichée" : "ABSENTE"}`);
+    await page.getByRole("tab", { name: "Je joue le deck A" }).click();
+    await page.getByRole("button", { name: /Commencer à jouer/ }).click();
+    await page.waitForTimeout(800);
+    let n = 0;
+    for (; n < 12; n++) {
+      const choices = page.locator("div.panel button.btn").filter({ hasText: /★|→|:|Acheter|Passer|Relancer/ });
+      if (!(await choices.count())) break;
+      await choices.first().click();
+      await page.waitForTimeout(150);
+    }
+    report.push(`[plateau] partie jouée : ${n} décisions, débordement ${await over()} px`);
+    await page.getByRole("button", { name: /Annuler/ }).click();
+    if (process.env.MINIATURES) await thumb(page, "telephone-plateau-jeu", true);
+  } else report.push("[plateau] pas de méta disponible pour choisir les decks");
   await ctx.close();
 }
 

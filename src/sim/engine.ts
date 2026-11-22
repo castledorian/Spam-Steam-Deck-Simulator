@@ -27,10 +27,24 @@ export interface MatchOpts {
   giftTox?: { side: 0 | 1; turn: number; fam: Fam; r: number; el: number };
   giftPts?: { side: 0 | 1; el: number; v: number };
   mute?: { side: 0 | 1; card: number; ab: number };
+  /** Journal détaillé : chaque ligne est accompagnée de l'état du terrain (page Plateau). */
+  frames?: Frame[];
 }
+/** État public du terrain (affichage du plateau, journal animé). */
+export interface BoardCard {
+  num: number; name: string; el: number; hp: number; max: number; alive: boolean; frozen: boolean; taunt: boolean;
+  abilities: { name: string; cd: number; ready: boolean; text: string }[];
+  tox: { fam: string; r: number; v: number; el: number }[]; res: number[]; poison: number;
+}
+export interface Board {
+  turn: number; terrain: number; spam: number[]; luck: number[]; pts: number[][];
+  cards: BoardCard[][];
+}
+/** Une ligne du journal avec l'état du terrain juste après. */
+export interface Frame { line: string; board: Board }
 export type DecisionKind = "cast" | "target" | "shop" | "option";
 /** Une décision de jeu : n options, def = choix de l'IA heuristique, label(i) = description de l'option i. */
-export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string; feat?: number[][] }
+export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string; feat?: number[][]; /** État du terrain au moment de la décision. */ board?: () => Board }
 export type Chooser = (d: Decision) => number;
 
 /** Paramètres de l'IA heuristique (valeurs par défaut = réglage de référence). */
@@ -120,9 +134,10 @@ const actLabel = (x: CAction) => `${ACT_FR[x.effect] ?? x.effect}${x.min || x.ma
 const isDmgEffect = (e: string) => e === "damage" || e === "DamageAll" || e === "DamageCasterHP" || e === "DamageWithCardElement" || e === "DamageOnShield2";
 
 export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng, opts: MatchOpts = {}): MatchResult {
-  const log = opts.log;
+  const log = opts.log ?? (opts.frames ? [] : undefined);
   const AI: [AiParams, AiParams] = [opts.ai?.[0] ?? DEFAULT_AI, opts.ai?.[1] ?? DEFAULT_AI];
   const decide = (d: Decision): number => {
+    d.board = board;
     const r = opts.choose!(d);
     return r >= 0 && r < d.n ? r : d.def;
   };
@@ -144,6 +159,18 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     for (let k = 0; k < c.tox.length; k++) if (c.tox[k].fam === fam) return c.tox[k];
     return undefined;
   };
+  const board = (): Board => ({
+    turn: Math.max(sides[0].turn, sides[1].turn), terrain,
+    spam: sides.map((x) => Math.round(x.spam)), luck: sides.map((x) => Math.round(x.luck * 10) / 10),
+    pts: sides.map((x) => x.pts.slice(0, 7).map((p) => Math.round(p))),
+    cards: sides.map((x) => x.cards.map((c) => ({
+      num: c.d.num, name: c.d.name, el: c.elCur, hp: Math.max(0, Math.round(c.hp)), max: Math.round(c.max), alive: c.alive, frozen: c.frozen,
+      taunt: x.taunt === c && x.tauntLeft > 0,
+      abilities: c.abs.map((a, k) => ({ name: a.name, cd: c.cd[k] ?? 0, ready: c.alive && !c.frozen && canCast(x, sides[1 - c.side], c, k), text: a.text })),
+      tox: c.tox.map((t) => ({ fam: t.fam, r: t.r, v: t.v, el: t.el })), res: c.res.slice(0, 6).map((r) => Math.round(r)),
+      poison: c.poison.length,
+    }))),
+  });
   const immune = (c: RCard) => !!tx(c, "immunity");
   const alive = (s: RSide) => s.cards.filter((c) => c.alive);
   const anyAlive = (s: RSide) => s.cards.some((c) => c.alive);
@@ -153,7 +180,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     for (const c of s.cards) if (c.alive) for (const t of c.tox) if (t.fam === "berserk") b += t.v;
     return b / 100;
   };
-  const say = (m: string) => { log!.push(m); };
+  const say = (m: string) => { log!.push(m); if (opts.frames) opts.frames.push({ line: m, board: board() }); };
   const nm = (c: RCard) => `${c.side === 0 ? "A" : "B"}·${c.d.name}`;
   const addPts = (s: RSide, o: RSide, el: number, v: number, mimic = true) => {
     if (el < 0 || el > 6 || v === 0) return;
