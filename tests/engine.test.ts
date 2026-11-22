@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { compile, type RawDataset } from "../src/sim/compile";
-import { mulberry32, playMatch, type DeckSpec, type Snapshot } from "../src/sim/engine";
+import { DEFAULT_AI, mulberry32, playMatch, type DeckSpec, type Snapshot } from "../src/sim/engine";
 
 const ds = JSON.parse(readFileSync(new URL("../public/data/dataset.json", import.meta.url), "utf8")) as RawDataset;
 const comp = compile(ds);
@@ -15,6 +15,8 @@ const num = (prefix: string) => {
 };
 const deck = (names: string[], tal?: number[]): DeckSpec => ({ cards: names.map(num), lv: [3, 3, 3, 3], tal });
 const FILLER = ["Esprit Ombre", "Esprit Nature", "Hibernatus", "Esprit Lumière"];
+/** IA qui n'achète jamais de Tox (pour isoler l'effet d'une capacité). */
+const NO_SHOP = { ...DEFAULT_AI, shopThr: 1e9 };
 
 test("aucune erreur ni valeur aberrante sur 3 000 parties aléatoires", () => {
   const rng = mulberry32(99);
@@ -65,7 +67,7 @@ test("une capacité « Choix » n'applique qu'une seule option", () => {
   assert.equal(king.options!.length, 3);
   const trace: Snapshot[] = [];
   const log: string[] = [];
-  playMatch(comp, [deck(["Roi Feu", "Esprit Eau", "Esprit Terre", "Esprit Ombre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(5), { trace, log, terrain: 3, first: 0 });
+  playMatch(comp, [deck(["Roi Feu", "Esprit Eau", "Esprit Terre", "Esprit Ombre"], [0, 0, 0, 0]), deck(FILLER, [0, 0, 0, 0])], mulberry32(5), { trace, log, terrain: 3, first: 0, ai: [NO_SHOP, NO_SHOP] });
   const fire = trace.filter((t) => t.side === 0).map((t) => t.pts[0][0]);
   for (let k = 1; k < fire.length; k++) assert.ok(fire[k] - fire[k - 1] <= 20, `+${fire[k] - fire[k - 1]} Feu en un tour (trois options appliquées ?)`);
 });
