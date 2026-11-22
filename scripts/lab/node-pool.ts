@@ -1,6 +1,7 @@
 /* Équivalent Node de SimPool (src/sim/pool.ts) : mêmes méthodes, exécutées sur des worker_threads. */
 import { Worker } from "node:worker_threads";
 import { cpus } from "node:os";
+import { resolve } from "node:path";
 import { compile, type Compiled, type RawDataset } from "../../src/sim/compile";
 import type { Ranked } from "../../src/sim/ranking";
 import type { Task, TaskOut } from "./worker";
@@ -16,7 +17,7 @@ export class NodePool {
   constructor(n?: number) {
     this.size = Math.max(1, n ?? cpus().length);
     for (let i = 0; i < this.size; i++) {
-      const w = new Worker(new URL("./worker.ts", import.meta.url));
+      const w = new Worker(resolve(process.cwd(), "scripts/lab/worker.ts"));
       w.on("message", (m: { id: number; result?: unknown; error?: string }) => {
         const h = this.handlers.get(m.id);
         if (!h) return;

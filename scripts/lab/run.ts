@@ -1,10 +1,11 @@
 /* Laboratoire hors ligne (GitHub Actions) : méta de référence, méta « IA experte », impact des Tox, des cartes,
  * des talents, des capacités et des points d'élément. Résultat : public/data/lab.json, lu par le site.
  *
- * Lancement : npx tsx scripts/lab/run.mts [--force] [--quick]
+ * Lancement (depuis la racine du dépôt) : npx tsx scripts/lab/run.ts [--force] [--quick]
  * Recalculé quand la version des données ou la version du laboratoire change.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { NodePool } from "./node-pool";
 import { buildMeta, type MetaPayload, wilson } from "../../src/sim/pool";
 import { defaultTalent, DEFAULT_AI, talentSlots, type DeckSpec } from "../../src/sim/engine";
@@ -15,9 +16,8 @@ export const LAB_VERSION = 1;
 
 const args = new Set(process.argv.slice(2));
 const QUICK = args.has("--quick");
-const root = new URL("../../", import.meta.url);
-const dsPath = new URL("public/data/dataset.json", root);
-const outPath = new URL("public/data/lab.json", root);
+const dsPath = resolve(process.cwd(), "public/data/dataset.json");
+const outPath = resolve(process.cwd(), "public/data/lab.json");
 const ds = JSON.parse(readFileSync(dsPath, "utf8"));
 
 if (!args.has("--force") && existsSync(outPath)) {
@@ -28,6 +28,7 @@ if (!args.has("--force") && existsSync(outPath)) {
   }
 }
 
+async function main() {
 const t0 = Date.now();
 const log = (m: string) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padStart(5)} s] ${m}`);
 const pool = new NodePool();
@@ -220,3 +221,6 @@ const out = {
 writeFileSync(outPath, JSON.stringify(out));
 log(`terminé : ${games.toLocaleString("fr")} parties simulées → public/data/lab.json`);
 pool.terminate();
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });

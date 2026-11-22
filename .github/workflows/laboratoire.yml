@@ -42,7 +42,7 @@ jobs:
       - name: Faut-il recalculer ?
         id: check
         run: |
-          LAB=$(grep -oP 'LAB_VERSION = \K[0-9]+' scripts/lab/run.mts)
+          LAB=$(grep -oP 'LAB_VERSION = \K[0-9]+' scripts/lab/run.ts)
           NEED=$(node -e '
             const fs = require("fs");
             const ds = JSON.parse(fs.readFileSync("public/data/dataset.json", "utf8"));
@@ -60,7 +60,7 @@ jobs:
 
       - name: Calculer (méta, IA experte, impact)
         if: steps.check.outputs.need == 'true'
-        run: npx tsx scripts/lab/run.mts --force
+        run: npx tsx scripts/lab/run.ts --force
 
       - name: Enregistrer et republier
         if: steps.check.outputs.need == 'true'
