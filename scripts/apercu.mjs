@@ -90,19 +90,19 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
         if (process.env.MINIATURES) await thumb(page, "telephone-plateau-boutique", false);
       }
       const pulse = page.locator("button.animate-pulse");
-      if (await pulse.count()) { await pulse.first().click(); await page.waitForTimeout(80); continue; }
+      if (await pulse.count()) { await pulse.first().dispatchEvent("click"); await page.waitForTimeout(80); continue; }
       const opt = page.locator("div.border-red-300\\/30 button.btn");
-      if (await opt.count()) { await opt.first().click(); await page.waitForTimeout(80); continue; }
+      if (await opt.count()) { await opt.first().dispatchEvent("click"); await page.waitForTimeout(80); continue; }
       const abil = page.locator("button.ring-emerald-300\\/60");
-      if (await abil.count()) { await abil.first().click(); await page.waitForTimeout(80); continue; }
+      if (await abil.count()) { await abil.first().dispatchEvent("click"); await page.waitForTimeout(80); continue; }
       const offer = page.locator("button:has-text('💰')").filter({ hasNotText: "Spamtons" });
       if (!sawShop || (await offer.count()) === 0) {
         const end = page.getByRole("button", { name: "Terminer le tour" });
-        if (await end.count()) { await end.click(); await page.waitForTimeout(80); continue; }
+        if (await end.count()) { await end.dispatchEvent("click"); await page.waitForTimeout(80); continue; }
         break;
       }
-      await offer.first().click(); await page.waitForTimeout(80);
-      if (!(await page.locator("button.animate-pulse").count())) { const end = page.getByRole("button", { name: "Terminer le tour" }); if (await end.count()) await end.click(); }
+      await offer.first().dispatchEvent("click"); await page.waitForTimeout(80);
+      if (!(await page.locator("button.animate-pulse").count())) { const end = page.getByRole("button", { name: "Terminer le tour" }); if (await end.count()) await end.dispatchEvent("click"); }
     }
     report.push(`[plateau] partie jouée : ${n} actions, boutique vue : ${sawShop}, fin de partie : ${(await page.getByText(/Victoire du|Égalité/).count()) > 0}, débordement ${await over()} px`);
     const wide = await page.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map((e) => `${e.tagName}.${String(e.className).slice(0, 80)} -> ${Math.round(e.getBoundingClientRect().right)}`));
