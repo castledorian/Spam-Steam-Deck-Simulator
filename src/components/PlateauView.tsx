@@ -365,7 +365,7 @@ export function PlateauView() {
                     <div className="font-semibold text-white">Carte pleine : que remplacer ?</div>
                     <p className="text-xs text-white/55">Un Tox prend la place d&apos;un autre passif ou d&apos;une capacité de la carte (une capacité à usage limité déjà utilisée ne sert plus à rien).</p>
                     {pick.map((ix) => <button key={ix} className="btn block w-full text-left" onClick={() => { setPick(null); answer(ix); }}>{pending.labels[ix].includes(" en remplaçant ") ? "Remplacer " + pending.labels[ix].split(" en remplaçant ")[1] : pending.labels[ix]}</button>)}
-                    <button className="text-xs text-white/50 underline" onClick={() => setPick(null)}>Annuler</button>
+                    <button className="text-xs text-white/50 underline" onClick={() => setPick(null)}>Fermer ce choix</button>
                   </div>
                 )}
                 <div className="panel flex flex-wrap items-center justify-between gap-2 p-3">

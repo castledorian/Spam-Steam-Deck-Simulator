@@ -89,6 +89,8 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
         await page.getByRole("heading", { name: "Boutique de Tox" }).first().scrollIntoViewIfNeeded();
         if (process.env.MINIATURES) await thumb(page, "telephone-plateau-boutique", false);
       }
+      const choix = page.getByRole("button", { name: /^Remplacer / });
+      if (await choix.count()) { await choix.first().dispatchEvent("click"); await page.waitForTimeout(80); continue; }
       const pulse = page.locator("button.animate-pulse");
       if (await pulse.count()) { await pulse.first().dispatchEvent("click"); await page.waitForTimeout(80); continue; }
       const opt = page.locator("div.border-red-300\\/30 button.btn");
