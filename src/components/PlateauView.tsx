@@ -310,8 +310,8 @@ export function PlateauView() {
       </div>
 
       {game && board && (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
-          <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
+          <div className="min-w-0 space-y-3">
             <div className="panel flex flex-wrap items-center justify-between gap-2 p-2.5 text-sm">
               <div className="text-white/75">{turnLine || "Début de partie"} · terrain <b className="text-white">{EL_FR[board.terrain]}</b></div>
               {mode === "bots" ? (
@@ -388,7 +388,7 @@ export function PlateauView() {
             )}
           </div>
 
-          <aside className="panel flex min-h-0 flex-col p-3 lg:max-h-[46rem]">
+          <aside className="panel flex min-h-0 min-w-0 flex-col p-3 lg:max-h-[46rem]">
             <div className="mb-2 flex gap-1 text-xs">
               {(["journal", "inspecteur", "glossaire"] as const).map((t) => <button key={t} className={`rounded-lg px-2.5 py-1 capitalize ${tab === t ? "bg-white/15 text-white" : "text-white/55"}`} onClick={() => setTab(t)}>{t}</button>)}
             </div>
