@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { compile, EL, EL_FR, RAR_LETTER, TOX_CATALOG } from "@/sim/compile";
-import type { Board, BoardCard, DeckSpec } from "@/sim/engine";
+import type { Board, BoardCard, DeckSpec, Ref, ShopView } from "@/sim/engine";
 import { runPlay, type PlayState } from "@/sim/play";
 import { Picker, type Pick } from "./AnalysisView";
 import { CardModal } from "./CardsBrowser";
@@ -11,8 +11,11 @@ import type { RawCard } from "@/sim/compile";
 
 const SIDE_COLOR = ["#7bf08a", "#ff9a7a"];
 const SIDE_NAME = ["Deck A", "Deck B"];
-const KIND_TITLE = { cast: "Quelle capacité lancer ?", target: "Choisissez la cible", shop: "Boutique : acheter, relancer ou passer", option: "Choisissez l'option" } as const;
+const KIND_TITLE = { cast: "Quelle capacité lancer ?", target: "Choisissez la cible", shop: "Boutique : acheter, relancer ou passer", option: "Choisissez l'option", turn: "À vous de jouer" } as const;
 const SPEEDS = [0.5, 1, 2, 4];
+const RARITY_COLOR = ["#9692A0", "#4FE6FF", "#C06AFF", "#FFC756"];
+const RARITY_NAME = ["Commun", "Rare", "Épique", "Légendaire"];
+const SLOTS = 3;
 
 const toxName = (t: { fam: string; r: number; el: number }) => {
   const f = TOX_CATALOG.find((x) => x.fam === t.fam && (t.fam !== "heart" || x.el === t.el)) ?? TOX_CATALOG.find((x) => x.fam === t.fam);
@@ -32,14 +35,15 @@ function fxOf(line: string | undefined): Fx {
   return {};
 }
 
-function Tile({ c, raw, side, selected, fx, orb, onClick }: { c: BoardCard; raw?: RawCard; side: number; selected: boolean; fx: Fx; orb: string | null; onClick: () => void }) {
+interface AbilityUi { can: boolean; hint: boolean; onClick: () => void }
+function Tile({ c, raw, side, selected, fx, orb, onClick, abil, mode }: { c: BoardCard; raw?: RawCard; side: number; selected: boolean; fx: Fx; orb: string | null; onClick: () => void; abil?: AbilityUi[]; mode?: "target" | "buy" | null }) {
   const ratio = raw ? `${raw.artwork.width}/${raw.artwork.height}` : "3/4";
   const pct = c.max ? Math.max(0, Math.min(1, c.hp / c.max)) : 0;
   const hit = fx.target && fx.target[0] === side && fx.target[1] === c.name ? fx.target : null;
   const cast = fx.caster && fx.caster[0] === side && fx.caster[1] === c.name;
   return (
     <div className="min-w-0">
-      <button type="button" onClick={onClick} aria-label={c.name} className={`relative block w-full overflow-hidden rounded-xl border bg-[#0b0618] text-left transition ${selected ? "border-white" : cast ? "border-amber-300" : "border-white/15 hover:border-white/50"} ${c.alive ? "" : "opacity-40 grayscale"}`} style={{ aspectRatio: ratio, boxShadow: cast ? "0 0 14px rgba(255,199,86,.55)" : undefined }}>
+      <button type="button" onClick={onClick} aria-label={c.name} className={`relative block w-full overflow-hidden rounded-xl border bg-[#0b0618] text-left transition ${mode === "target" ? "animate-pulse border-red-400" : mode === "buy" ? "animate-pulse border-emerald-300" : selected ? "border-white" : cast ? "border-amber-300" : "border-white/15 hover:border-white/50"} ${c.alive ? "" : "opacity-40 grayscale"}`} style={{ aspectRatio: ratio, boxShadow: mode === "target" ? "0 0 16px rgba(248,113,113,.7)" : mode === "buy" ? "0 0 16px rgba(110,231,183,.7)" : cast ? "0 0 14px rgba(255,199,86,.55)" : undefined }}>
         {raw && /* eslint-disable-next-line @next/next/no-img-element */ <img src={img(raw.artwork.tiny)} alt="" decoding="async" className="h-full w-full object-contain" />}
         {c.frozen && <span className="absolute inset-0 bg-cyan-300/25" />}
         {orb && /* eslint-disable-next-line @next/next/no-img-element */ <img src={orb} alt="" className="absolute left-0.5 top-0.5 h-[28%] w-auto drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]" style={{ maxWidth: "38%" }} />}
@@ -52,10 +56,14 @@ function Tile({ c, raw, side, selected, fx, orb, onClick }: { c: BoardCard; raw?
         </span>
       </button>
       <div className="mt-1 flex flex-wrap gap-0.5">
-        {c.abilities.map((a, k) => (
-          <span key={k} title={a.text} className={`max-w-full truncate rounded px-1 py-px text-[9px] leading-tight sm:text-[10px] ${a.ready ? "bg-emerald-400/20 text-emerald-200" : "bg-white/8 text-white/50"}`}>{a.name} · {a.ready ? "prête" : a.cd > 0 ? `${a.cd} t.` : "—"}</span>
-        ))}
+        {c.abilities.map((a, k) => {
+          const u = abil?.[k];
+          const cls = `max-w-full truncate rounded px-1 py-px text-[9px] leading-tight sm:text-[10px] ${u?.can ? "bg-emerald-400/25 text-emerald-100 ring-1 ring-emerald-300/60 hover:bg-emerald-400/45" : a.ready ? "bg-emerald-400/20 text-emerald-200" : "bg-white/8 text-white/50"} ${u?.hint ? "ring-2 !ring-amber-300" : ""}`;
+          const label = `${u?.hint ? "★ " : ""}${a.name} · ${a.ready ? "prête" : a.cd > 0 ? `${a.cd} t.` : "—"}`;
+          return u?.can ? <button key={k} type="button" title={a.text} className={cls} onClick={u.onClick}>{label}</button> : <span key={k} title={a.text} className={cls}>{label}</span>;
+        })}
         {c.tox.map((t, k) => <span key={"t" + k} className="max-w-full truncate rounded bg-fuchsia-400/15 px-1 py-px text-[9px] leading-tight text-fuchsia-200 sm:text-[10px]">{toxName(t)}</span>)}
+        {c.alive && Array.from({ length: Math.max(0, SLOTS - c.abilities.length - c.tox.length) }, (_, k) => <span key={"e" + k} className="rounded border border-dashed border-white/20 px-1 py-px text-[9px] leading-tight text-white/30 sm:text-[10px]">emplacement libre</span>)}
       </div>
     </div>
   );
@@ -103,6 +111,39 @@ function Inspector({ c, raw, onOpen }: { c: BoardCard; raw?: RawCard; onOpen: ()
   );
 }
 
+function ShopPanel({ shop, armed, setArmed, onReroll, onSkip, onBan, canBan, spam, icon }: { shop: ShopView; armed: number | null; setArmed: (k: number | null) => void; onReroll: (() => void) | null; onSkip: (() => void) | null; onBan: ((k: number) => void) | null; canBan: (k: number) => boolean; spam: number; icon: (name: string) => string | null }) {
+  return (
+    <div className="panel space-y-3 border-amber-300/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-xl text-amber-200">Boutique de Tox</h2>
+        <span className="rounded bg-amber-300/15 px-2 py-0.5 text-sm text-amber-100">💰 {spam} Spamtons</span>
+      </div>
+      <p className="text-xs text-white/55">Choisissez un Tox, puis la carte de votre deck qui le reçoit (elle doit avoir un emplacement libre). Un seul achat par boutique.</p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {shop.offers.map((o, k) => o ? (
+          <div key={k} className={`flex flex-col gap-1 rounded-xl border p-2 text-left text-xs transition ${armed === k ? "bg-white/12" : "bg-black/25"} ${o.affordable ? "" : "opacity-50"}`} style={{ borderColor: armed === k ? "#fff" : RARITY_COLOR[o.r] + "99" }}>
+            <button type="button" disabled={!o.affordable} onClick={() => setArmed(armed === k ? null : k)} className="flex flex-1 flex-col gap-1 text-left">
+              <span className="flex items-center gap-1.5">
+                {icon(o.name) && /* eslint-disable-next-line @next/next/no-img-element */ <img src={icon(o.name)!} alt="" className="h-6 w-6" />}
+                <b className="text-sm text-white">{o.name}</b>
+              </span>
+              <span style={{ color: RARITY_COLOR[o.r] }}>{RARITY_NAME[o.r]} · {o.group}{o.el >= 0 ? ` · ${EL_FR[o.el]}` : ""}</span>
+              <span className="text-white/65">{o.desc.replace(/\bX\b/g, String(o.value))}</span>
+              <span className="mt-auto font-display text-base text-amber-200">{o.price} 💰{o.affordable ? "" : " (trop cher)"}</span>
+            </button>
+            {onBan && canBan(k) && <button type="button" className="rounded bg-red-400/15 px-2 py-0.5 text-[11px] text-red-200 hover:bg-red-400/30" onClick={() => onBan(k)}>Bannir cette famille</button>}
+          </div>
+        ) : <div key={k} className="rounded-xl border border-white/10 p-2 text-xs text-white/40">Offre indisponible</div>)}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn !py-1.5 text-sm" disabled={!onReroll} onClick={() => onReroll?.()}>🔄 Relancer ({shop.rerollCost})</button>
+        <button className="btn !py-1.5 text-sm" disabled={!onSkip} onClick={() => onSkip?.()}>⏭ Passer (+10 Spamtons)</button>
+        {shop.banUsed && <span className="self-center text-[11px] text-white/45">Bannissement déjà utilisé sur cette boutique</span>}
+      </div>
+    </div>
+  );
+}
+
 const sideOfLine = (l: string) => { const m = l.match(/(?:^|\s|🛒 )([AB])(?:·| achète| relance)/); return m ? (m[1] === "A" ? 0 : 1) : -1; };
 
 export function PlateauView() {
@@ -122,6 +163,9 @@ export function PlateauView() {
   const [sel, setSel] = useState<[number, number] | null>(null);
   const [open, setOpen] = useState<RawCard | null>(null);
   const [copied, setCopied] = useState(false);
+  const [armed, setArmed] = useState<number | null>(null);
+  const [chrono, setChrono] = useState(false);
+  const [left, setLeft] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
 
   const valid = (d: Pick) => d.cards.length === 4 && d.cards.every((x) => x > 0) && new Set(d.cards).size === 4;
@@ -158,7 +202,23 @@ export function PlateauView() {
     setGame({ decks: [spec(a), spec(b)], seed: same && game ? game.seed : (Math.random() * 1e9) >>> 0, first: same && game ? game.first : f, terrain: same && game ? game.terrain : Math.floor(Math.random() * 6), human: mode === "play" ? 0 : null, answers: [] });
     if (!same) window.history.replaceState(null, "", window.location.pathname);
   };
-  const answer = (i: number) => { if (!game) return; setRedo([]); setGame({ ...game, answers: [...game.answers, i] }); };
+  const answer = (i: number) => { if (!game || i < 0) return; setRedo([]); setArmed(null); setGame({ ...game, answers: [...game.answers, i] }); };
+  const skillIcons = useMemo(() => {
+    const m = new Map<string, string>();
+    if (ds) for (const c of ds.cards) for (const k of c.skills) m.set(k.name, k.icon);
+    return m;
+  }, [ds]);
+  // chronomètre optionnel (15 s par carte restante + 20 s, comme dans le jeu) : à zéro, le tour se termine
+  const endRef = useRef<() => void>(() => {});
+  const turnKey = mode === "play" && view?.pending?.kind === "turn" ? view.pending.turn : 0;
+  useEffect(() => {
+    if (!chrono || !turnKey || !view?.pending) return;
+    const alive = view.pending.board.cards[0].filter((c) => c.alive).length;
+    setLeft(15 * alive + 20);
+    const id = setInterval(() => setLeft((x) => { if (x <= 1) { clearInterval(id); endRef.current(); return 0; } return x - 1; }), 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chrono, turnKey]);
   const undo = () => { if (!game || !game.answers.length) return; setRedo([game.answers[game.answers.length - 1], ...redo]); setGame({ ...game, answers: game.answers.slice(0, -1) }); };
   const redoOne = () => { if (!game || !redo.length) return; setGame({ ...game, answers: [...game.answers, redo[0]] }); setRedo(redo.slice(1)); };
   const share = async () => {
@@ -183,12 +243,36 @@ export function PlateauView() {
   const rawOf = (c: BoardCard) => byNum.get(c.num);
   const pending = mode === "play" ? view?.pending ?? null : null;
   const mark = mode === "play" ? view?.mark ?? 0 : 0;
+  const refs: (Ref | null)[] = pending?.refs ?? [];
+  const idxOf = (pred: (r: Ref) => boolean) => refs.findIndex((r) => !!r && pred(r));
+  const castIdx = (card: number, ab: number) => idxOf((r) => r.tag === "cast" && r.card === card && r.ab === ab);
+  const targetIdx = (side: number, card: number) => idxOf((r) => r.tag === "target" && r.side === side && r.card === card);
+  const buyIdx = (offer: number, card: number) => idxOf((r) => r.tag === "buy" && r.offer === offer && r.card === card);
+  const endIdx = idxOf((r) => r.tag === "end");
+  endRef.current = () => { if (!pending) return; if (pending.kind === "turn" && endIdx >= 0) answer(endIdx); else answer(pending.def); };
+  const toxIcon = (name: string) => { const i = skillIcons.get(name); return i ? img(i) : null; };
+  const recent = mode === "play" ? frames.slice(mark).filter((f) => !f.line.startsWith("— Tour") || true).slice(-9) : [];
 
   const row = (side: number) => board && (
     <div className="space-y-2">
       <Resources b={board} side={side} />
       <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-        {board.cards[side].map((c, i) => <Tile key={i} c={c} raw={rawOf(c)} side={side} orb={orbOf(c)} fx={fx} selected={!!sel && sel[0] === side && sel[1] === i} onClick={() => { setSel([side, i]); setTab("inspecteur"); }} />)}
+        {board.cards[side].map((c, i) => {
+          const isTarget = pending?.kind === "target" && targetIdx(side, i) >= 0;
+          const isBuy = pending?.kind === "turn" && armed !== null && side === 0 && buyIdx(armed, i) >= 0;
+          const abil: AbilityUi[] | undefined = pending?.kind === "turn" && side === 0
+            ? c.abilities.map((_, k) => { const ix = castIdx(i, k); return { can: ix >= 0, hint: hint && ix >= 0 && ix === pending.def, onClick: () => answer(ix) }; })
+            : undefined;
+          return (
+            <Tile key={i} c={c} raw={rawOf(c)} side={side} orb={orbOf(c)} fx={fx} abil={abil} mode={isTarget ? "target" : isBuy ? "buy" : null}
+              selected={!!sel && sel[0] === side && sel[1] === i}
+              onClick={() => {
+                if (isTarget) return answer(targetIdx(side, i));
+                if (isBuy) return answer(buyIdx(armed!, i));
+                setSel([side, i]); setTab("inspecteur");
+              }} />
+          );
+        })}
       </div>
     </div>
   );
@@ -197,7 +281,7 @@ export function PlateauView() {
     <div className="space-y-5">
       <div>
         <h1 className="font-display text-3xl text-white sm:text-4xl">Plateau</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">Regardez deux bots s&apos;affronter en direct, ou prenez la place du deck A : vous choisissez l&apos;ordre des capacités, les cibles, les achats et les relances en boutique, le bot joue le deck B. Chaque partie est rejouable : <b>annuler</b> revient d&apos;une décision en arrière, <b>partager</b> copie un lien qui rouvre exactement la même partie.</p>
+        <p className="mt-1 max-w-3xl text-sm text-white/65">Regardez deux bots s&apos;affronter en direct, ou prenez la place du deck A comme dans le jeu : sur votre tour, lancez vos capacités et utilisez la boutique de Tox (acheter, relancer, passer, bannir) dans l&apos;ordre que vous voulez, puis terminez le tour. Le bot joue le deck B. Chaque partie est rejouable : <b>annuler</b> revient d&apos;une décision en arrière, <b>partager</b> copie un lien qui rouvre exactement la même partie.</p>
       </div>
 
       <details className="space-y-3" open={!game}>
@@ -247,6 +331,12 @@ export function PlateauView() {
             </div>
             {mode === "bots" && frames.length > 1 && <input type="range" min={0} max={frames.length - 1} value={Math.min(fi, frames.length - 1)} onChange={(e) => { setPlaying(false); setFi(+e.target.value); }} className="w-full" aria-label="Position dans la partie" />}
 
+            {mode === "play" && recent.length > 0 && (
+              <div className="rounded-lg bg-black/30 px-3 py-2 text-xs leading-relaxed text-white/70">
+                <div className="mb-0.5 font-display text-sm text-white">Dernières actions</div>
+                {recent.map((f, k) => <div key={k} className="truncate">{f.line.trim()}</div>)}
+              </div>
+            )}
             {row(1)}
             {lineNow && <div className="rounded-lg bg-black/30 px-3 py-1.5 text-center text-xs text-white/80">{lineNow.trim()}</div>}
             {row(0)}
@@ -258,12 +348,35 @@ export function PlateauView() {
               </div>
             )}
 
-            {pending && (
-              <div className="panel space-y-2 p-3">
+            {pending && pending.kind === "turn" && (
+              <div className="space-y-3">
+                {pending.shop && (
+                  <ShopPanel shop={pending.shop} armed={armed} setArmed={setArmed} spam={pending.board.spam[0]} icon={toxIcon}
+                    onReroll={idxOf((r) => r.tag === "reroll") >= 0 ? () => answer(idxOf((r) => r.tag === "reroll")) : null}
+                    onSkip={idxOf((r) => r.tag === "skip") >= 0 ? () => answer(idxOf((r) => r.tag === "skip")) : null}
+                    canBan={(k) => idxOf((r) => r.tag === "ban" && r.offer === k) >= 0}
+                    onBan={(k) => answer(idxOf((r) => r.tag === "ban" && r.offer === k))} />
+                )}
+                <div className="panel flex flex-wrap items-center justify-between gap-2 p-3">
+                  <div>
+                    <h2 className="font-display text-xl text-white">À vous de jouer <span className="text-sm text-white/45">· tour {pending.turn}</span></h2>
+                    <p className="text-xs text-white/55">Touchez une capacité <span className="text-emerald-300">verte</span> de votre deck pour la lancer{pending.shop ? ", ou une offre de la boutique" : ""}. Terminez le tour quand vous avez fini.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-white/65">
+                    <label className="flex items-center gap-1.5"><input type="checkbox" checked={hint} onChange={(e) => setHint(e.target.checked)} /> Conseil de l&apos;IA</label>
+                    <label className="flex items-center gap-1.5"><input type="checkbox" checked={chrono} onChange={(e) => setChrono(e.target.checked)} /> Chrono{chrono ? ` · ${left} s` : ""}</label>
+                    <button className="btn btn-primary !px-4 !py-2 text-sm" disabled={endIdx < 0} onClick={() => answer(endIdx)}>Terminer le tour</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {pending && pending.kind !== "turn" && (
+              <div className="panel space-y-2 border-red-300/30 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="font-display text-xl text-white">{KIND_TITLE[pending.kind]} <span className="text-sm text-white/45">· tour {pending.turn}</span></h2>
+                  <h2 className="font-display text-xl text-white">{KIND_TITLE[pending.kind]}</h2>
                   <label className="flex items-center gap-1.5 text-xs text-white/65"><input type="checkbox" checked={hint} onChange={(e) => setHint(e.target.checked)} /> Conseil de l&apos;IA</label>
                 </div>
+                {pending.kind === "target" && <p className="text-xs text-white/55">Touchez la carte visée sur le plateau (contour rouge), ou choisissez ci-dessous.</p>}
                 <div className="grid gap-1.5 sm:grid-cols-2">
                   {pending.labels.map((l, i) => (
                     <button key={i} className={`btn !justify-start !text-left text-sm ${hint && i === pending.def ? "!border-amber-300/60" : ""}`} onClick={() => answer(i)}>

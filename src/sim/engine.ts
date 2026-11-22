@@ -29,6 +29,8 @@ export interface MatchOpts {
   mute?: { side: 0 | 1; card: number; ab: number };
   /** Journal détaillé : chaque ligne est accompagnée de l'état du terrain (page Plateau). */
   frames?: Frame[];
+  /** Côté joué « librement » (page Plateau) : sur son tour, il lance ses capacités et utilise la boutique dans l'ordre qu'il veut, puis termine son tour. */
+  free?: 0 | 1 | null;
 }
 /** État public du terrain (affichage du plateau, journal animé). */
 export interface BoardCard {
@@ -42,9 +44,17 @@ export interface Board {
 }
 /** Une ligne du journal avec l'état du terrain juste après. */
 export interface Frame { line: string; board: Board }
-export type DecisionKind = "cast" | "target" | "shop" | "option";
+/** Ce qu'une option de décision désigne sur le plateau (pour jouer en cliquant sur les cartes). */
+export type Ref =
+  | { tag: "cast"; card: number; ab: number }
+  | { tag: "target"; side: number; card: number }
+  | { tag: "buy"; offer: number; card: number }
+  | { tag: "reroll" } | { tag: "skip" } | { tag: "ban"; offer: number } | { tag: "end" } | { tag: "opt" };
+export interface ShopOffer { fam: string; name: string; group: string; el: number; r: number; price: number; desc: string; value: number; affordable: boolean }
+export interface ShopView { offers: (ShopOffer | null)[]; rerollCost: number; banUsed: boolean }
+export type DecisionKind = "cast" | "target" | "shop" | "option" | "turn";
 /** Une décision de jeu : n options, def = choix de l'IA heuristique, label(i) = description de l'option i. */
-export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string; feat?: number[][]; /** État du terrain au moment de la décision. */ board?: () => Board }
+export interface Decision { kind: DecisionKind; side: 0 | 1; turn: number; n: number; def: number; label: (i: number) => string; feat?: number[][]; /** État du terrain au moment de la décision. */ board?: () => Board; ref?: (i: number) => Ref; shop?: ShopView | null }
 export type Chooser = (d: Decision) => number;
 
 /** Paramètres de l'IA heuristique (valeurs par défaut = réglage de référence). */
@@ -554,7 +564,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     }
     if (opts.choose && cand.length > 1) {
       const cc = cand;
-      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, feat: feats ?? undefined, label: (i) => `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
+      bi = decide({ kind: "target", side: c.side as 0 | 1, turn: S.turn, n: cc.length, def: bi, feat: feats ?? undefined, ref: (i) => ({ tag: "target", side: cc[i].side, card: cc[i].i }), label: (i) => `${a.name} → ${cc[i].d.name} (${Math.max(0, Math.round(cc[i].hp))}/${Math.round(cc[i].max)} PV${(cc[i].resurrect && !cc[i].revived) || (!cc[i].phxUsed && tx(cc[i], "phoenix")) ? ", reviendra" : ""})` });
     }
     return cand[bi];
   };
@@ -616,7 +626,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       });
       if (opts.choose && a.options.length > 1) {
         const ops = a.options;
-        bi = decide({ kind: "option", side: c.side as 0 | 1, turn: S.turn, n: ops.length, def: bi, label: (i) => `${a.name} : ${ops[i].map((j) => actLabel(a.actions[j])).join(" + ")}` });
+        bi = decide({ kind: "option", side: c.side as 0 | 1, turn: S.turn, n: ops.length, def: bi, ref: () => ({ tag: "opt" }), label: (i) => `${a.name} : ${ops[i].map((j) => actLabel(a.actions[j])).join(" + ")}` });
       }
       acts = a.options[bi].map((i) => a.actions[i]);
       doFreeze = !!a.optFreeze[bi];
@@ -1068,6 +1078,109 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     if (best) giveTox(S, best, f, g.r);
   };
 
+
+  /** Tour « libre » : capacités et boutique dans l'ordre voulu, jusqu'à « Terminer le tour ». Renvoie true si la partie est finie. */
+  const banned: Set<string>[] = [new Set(), new Set()];
+  const freeTurn = (S: RSide, E: RSide, s: number): boolean => {
+    const t = S.turn;
+    const P = AI[s];
+    const who = s === 0 ? "A" : "B";
+    type Off = { f: ToxFamily; r: number; price: number };
+    const rollOffer = (): Off | null => {
+      for (let g = 0; g < 30; g++) {
+        const r = rollRarity(S.luck);
+        const pool = (byR[r].length ? byR[r] : byR[0]).filter((f) => !banned[s].has(f.fam + (f.el ?? "")));
+        if (!pool.length) continue;
+        const f = pool[Math.floor(rng() * pool.length)];
+        const rr = f.vals[r] === null ? 0 : r;
+        const price = f.prices[rr];
+        if (price !== null) return { f, r: rr, price };
+      }
+      return null;
+    };
+    let shopOpen = t % 2 === 0;
+    let offers: (Off | null)[] = shopOpen ? [rollOffer(), rollOffer(), rollOffer()] : [];
+    let rerolls = 0, banUsed = false;
+    const nc = new Array<number>(32).fill(0);
+    for (let guard = 0; guard < 120; guard++) {
+      if (!anyAlive(E)) return true;
+      if (!anyAlive(S)) return true;
+      const opts_: { ref: Ref; label: string; u?: number; pr?: number; n?: number }[] = [];
+      for (const c of S.cards) {
+        if (!c.alive || c.frozen) continue;
+        for (let ai = 0; ai < c.abs.length; ai++) {
+          const n = nc[c.i * 8 + ai];
+          if (n >= 7 || !canCast(S, E, c, ai)) continue;
+          opts_.push({ ref: { tag: "cast", card: c.i, ab: ai }, label: `${c.d.name} : ${c.abs[ai].name}`, pr: P.pr[c.abs[ai].prio] ?? c.abs[ai].prio, n });
+        }
+      }
+      const cost = rerolls === 0 && S.casino ? 0 : 10 + 5 * rerolls;
+      if (shopOpen) {
+        const free = S.cards.filter((c) => c.alive && c.abs.length + c.tox.length < SLOTS);
+        offers.forEach((o, k) => {
+          if (!o || S.spam < o.price) return;
+          for (const c of free) {
+            let u = utility(S, E, c, o.f, o.r, t);
+            if (u > 0) u *= P.fam[o.f.fam] ?? 1;
+            u -= P.priceW * o.price;
+            opts_.push({ ref: { tag: "buy", offer: k, card: c.i }, label: `Acheter ${o.f.name} (${["C", "R", "E", "L"][o.r]}, ${o.price}) pour ${c.d.name}`, u });
+          }
+        });
+        if (rerolls < 6 && S.spam >= cost) opts_.push({ ref: { tag: "reroll" }, label: `Relancer la boutique (${cost})` });
+        opts_.push({ ref: { tag: "skip" }, label: "Passer la boutique (+10 Spamtons)" });
+        if (!banUsed) offers.forEach((o, k) => { if (o) opts_.push({ ref: { tag: "ban", offer: k }, label: `Bannir la famille ${o.f.name}` }); });
+      }
+      opts_.push({ ref: { tag: "end" }, label: "Terminer le tour" });
+      if (opts_.length === 1) break; // plus rien à faire
+      // conseil : meilleur achat s'il dépasse le seuil de l'IA, sinon la capacité la plus prioritaire, sinon passer / finir
+      const thr = P.shopThr * Math.max(0.25, 1 - t / P.shopDecay);
+      let def = -1, bu = -1e9;
+      opts_.forEach((o, i) => { if (o.ref.tag === "buy" && o.u! > bu) { bu = o.u!; def = i; } });
+      if (def < 0 || bu < thr) {
+        def = -1;
+        let bn = 1e9, bp = 1e9;
+        opts_.forEach((o, i) => { if (o.ref.tag === "cast" && (o.n! < bn || (o.n === bn && o.pr! < bp))) { bn = o.n!; bp = o.pr!; def = i; } });
+      }
+      if (def < 0) def = opts_.findIndex((o) => o.ref.tag === (shopOpen ? "skip" : "end"));
+      const shopView: ShopView | null = shopOpen ? {
+        rerollCost: cost, banUsed,
+        offers: offers.map((o) => o && { fam: o.f.fam, name: o.f.name, group: o.f.group, el: o.f.el ?? -1, r: o.r, price: o.price, desc: o.f.desc, value: o.f.vals[o.r] ?? 0, affordable: S.spam >= o.price }),
+      } : null;
+      const snapshot = opts_;
+      const ch = decide({ kind: "turn", side: s as 0 | 1, turn: t, n: snapshot.length, def, label: (i) => snapshot[i].label, ref: (i) => snapshot[i].ref, shop: shopView });
+      const o = snapshot[ch] ?? snapshot[def];
+      const ref = o.ref;
+      if (ref.tag === "end") { if (log) say(`⏹ ${who} termine son tour`); break; }
+      if (ref.tag === "cast") {
+        nc[ref.card * 8 + ref.ab]++;
+        castAbility(S, E, S.cards[ref.card], ref.ab);
+      } else if (ref.tag === "buy") {
+        const of = offers[ref.offer]!;
+        const c = S.cards[ref.card];
+        S.spam -= of.price;
+        if (S.petit && !S.boughtOnce) S.spam += of.price;
+        S.boughtOnce = true;
+        giveTox(S, c, of.f, of.r);
+        if (log) say(`🛒 ${who} achète ${of.f.name} (${["C", "R", "E", "L"][of.r]}) pour ${c.d.name} (${of.price})`);
+        shopOpen = false;
+      } else if (ref.tag === "reroll") {
+        S.spam -= cost; rerolls++;
+        offers = [rollOffer(), rollOffer(), rollOffer()];
+        if (log) say(`🔄 ${who} relance la boutique (${cost})`);
+      } else if (ref.tag === "skip") {
+        S.spam += 10; shopOpen = false;
+        if (log) say(`⏭ ${who} passe la boutique (+10 Spamtons)`);
+      } else if (ref.tag === "ban") {
+        const of = offers[ref.offer]!;
+        banned[s].add(of.f.fam + (of.f.el ?? ""));
+        banUsed = true;
+        offers = offers.map((x) => (x && banned[s].has(x.f.fam + (x.f.el ?? "")) ? rollOffer() : x));
+        if (log) say(`🚫 ${who} bannit la famille ${of.f.name} pour le reste de la partie`);
+      }
+    }
+    return false;
+  };
+
   /* ----- boucle de jeu ----- */
   const snap = (turn: number, side: number) => {
     if (!opts.trace) return;
@@ -1149,35 +1262,39 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     }
     if (!anyAlive(S)) return;
     gift(S, E, s);
-    if (t % 2 === 0) shop(S, E, s);
-    // capacités : l'IA choisit l'ordre (par défaut : priorité, chaque capacité une fois avant les relances par Écho)
-    const nc = new Array<number>(32).fill(0);
-    const P = AI[s];
-    const muted = opts.mute && opts.mute.side === s ? opts.mute : null;
-    for (let guard = 0; guard < 60; guard++) {
-      if (!anyAlive(E)) return;
-      const ready: { c: RCard; ai: number; pr: number; n: number }[] = [];
-      for (const c of S.cards) {
-        if (!c.alive || c.frozen) continue;
-        for (let ai = 0; ai < c.abs.length; ai++) {
-          const n = nc[c.i * 8 + ai];
-          if (n >= 7 || (muted && muted.card === c.i && muted.ab === ai)) continue;
-          if (canCast(S, E, c, ai)) ready.push({ c, ai, pr: P.pr[c.abs[ai].prio] ?? c.abs[ai].prio, n });
+    if (opts.choose && opts.free === s) {
+      if (freeTurn(S, E, s)) return;
+    } else {
+      if (t % 2 === 0) shop(S, E, s);
+      // capacités : l'IA choisit l'ordre (par défaut : priorité, chaque capacité une fois avant les relances par Écho)
+      const nc = new Array<number>(32).fill(0);
+      const P = AI[s];
+      const muted = opts.mute && opts.mute.side === s ? opts.mute : null;
+      for (let guard = 0; guard < 60; guard++) {
+        if (!anyAlive(E)) return;
+        const ready: { c: RCard; ai: number; pr: number; n: number }[] = [];
+        for (const c of S.cards) {
+          if (!c.alive || c.frozen) continue;
+          for (let ai = 0; ai < c.abs.length; ai++) {
+            const n = nc[c.i * 8 + ai];
+            if (n >= 7 || (muted && muted.card === c.i && muted.ab === ai)) continue;
+            if (canCast(S, E, c, ai)) ready.push({ c, ai, pr: P.pr[c.abs[ai].prio] ?? c.abs[ai].prio, n });
+          }
         }
+        if (!ready.length) break;
+        let bi = 0;
+        for (let k = 1; k < ready.length; k++) {
+          const x = ready[k], b = ready[bi];
+          if (x.n < b.n || (x.n === b.n && x.pr < b.pr)) bi = k;
+        }
+        if (opts.choose && ready.length > 1) {
+          const rr = ready;
+          bi = decide({ kind: "cast", side: s as 0 | 1, turn: t, n: rr.length, def: bi, label: (i) => `${rr[i].c.d.name} : ${rr[i].c.abs[rr[i].ai].name}` });
+        }
+        const r = ready[bi];
+        nc[r.c.i * 8 + r.ai]++;
+        castAbility(S, E, r.c, r.ai);
       }
-      if (!ready.length) break;
-      let bi = 0;
-      for (let k = 1; k < ready.length; k++) {
-        const x = ready[k], b = ready[bi];
-        if (x.n < b.n || (x.n === b.n && x.pr < b.pr)) bi = k;
-      }
-      if (opts.choose && ready.length > 1) {
-        const rr = ready;
-        bi = decide({ kind: "cast", side: s as 0 | 1, turn: t, n: rr.length, def: bi, label: (i) => `${rr[i].c.d.name} : ${rr[i].c.abs[rr[i].ai].name}` });
-      }
-      const r = ready[bi];
-      nc[r.c.i * 8 + r.ai]++;
-      castAbility(S, E, r.c, r.ai);
     }
     for (const c of S.cards) {
       if (!c.alive) continue;

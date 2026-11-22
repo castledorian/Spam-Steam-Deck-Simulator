@@ -4,7 +4,7 @@
  * Pour connaître l'état après une nouvelle réponse, on rejoue la partie depuis le début avec les réponses déjà données ;
  * à la première décision du joueur sans réponse, le moteur est interrompu et l'état du terrain est renvoyé. Annuler = retirer la dernière réponse. */
 import type { Compiled } from "./compile";
-import { mulberry32, playMatch, type Board, type DeckSpec, type Decision, type DecisionKind, type Frame, type MatchResult } from "./engine";
+import { mulberry32, playMatch, type Board, type DeckSpec, type Decision, type DecisionKind, type Frame, type MatchResult, type Ref, type ShopView } from "./engine";
 
 export interface PlayState {
   decks: [DeckSpec, DeckSpec];
@@ -17,7 +17,7 @@ export interface PlayState {
   answers: number[];
 }
 
-export interface Pending { kind: DecisionKind; side: 0 | 1; turn: number; labels: string[]; def: number; board: Board }
+export interface Pending { kind: DecisionKind; side: 0 | 1; turn: number; labels: string[]; def: number; board: Board; refs: (Ref | null)[]; shop: ShopView | null }
 export interface PlayView {
   frames: Frame[];
   /** Décision en attente du joueur humain (null : partie terminée ou bots seuls). */
@@ -38,10 +38,10 @@ export function runPlay(comp: Compiled, st: PlayState): PlayView {
   const choose = (d: Decision): number => {
     if (st.human === null || d.side !== st.human) return d.def;
     if (idx < st.answers.length) { idx++; if (idx === st.answers.length) mark = frames.length; return st.answers[idx - 1]; }
-    throw new Interrupt({ kind: d.kind, side: d.side, turn: d.turn, labels: Array.from({ length: d.n }, (_, i) => d.label(i)), def: d.def, board: d.board!() });
+    throw new Interrupt({ kind: d.kind, side: d.side, turn: d.turn, labels: Array.from({ length: d.n }, (_, i) => d.label(i)), def: d.def, board: d.board!(), refs: Array.from({ length: d.n }, (_, i) => (d.ref ? d.ref(i) : null)), shop: d.shop ?? null });
   };
   try {
-    const result = playMatch(comp, st.decks, mulberry32(st.seed), { frames, choose, first: st.first, terrain: st.terrain });
+    const result = playMatch(comp, st.decks, mulberry32(st.seed), { frames, choose, first: st.first, terrain: st.terrain, free: st.human });
     return { frames, pending: null, result, mark: st.answers.length ? mark : 0 };
   } catch (e) {
     if (e instanceof Interrupt) return { frames, pending: e.pending, result: null, mark: st.answers.length ? mark : 0 };

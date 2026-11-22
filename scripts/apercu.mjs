@@ -82,17 +82,30 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
     await page.getByRole("tab", { name: "Je joue le deck A" }).click();
     await page.getByRole("button", { name: /Commencer à jouer/ }).click();
     await page.waitForTimeout(800);
-    let n = 0;
-    for (; n < 12; n++) {
-      const choices = page.locator("div.panel button.btn").filter({ hasText: /★|→|:|Acheter|Passer|Relancer/ });
-      if (!(await choices.count())) break;
-      await choices.first().click();
-      await page.waitForTimeout(150);
+    let n = 0, shot = false, sawShop = false;
+    for (; n < 80; n++) {
+      if (!shot && (await page.getByText("Boutique de Tox").count())) {
+        sawShop = true; shot = true;
+        if (process.env.MINIATURES) await thumb(page, "telephone-plateau-boutique", true);
+      }
+      const pulse = page.locator("button.animate-pulse");
+      if (await pulse.count()) { await pulse.first().click(); await page.waitForTimeout(80); continue; }
+      const opt = page.locator("div.border-red-300\\/30 button.btn");
+      if (await opt.count()) { await opt.first().click(); await page.waitForTimeout(80); continue; }
+      const abil = page.locator("button.ring-emerald-300\\/60");
+      if (await abil.count()) { await abil.first().click(); await page.waitForTimeout(80); continue; }
+      const offer = page.locator("button:has-text('💰')").filter({ hasNotText: "Spamtons" });
+      if (!sawShop || (await offer.count()) === 0) {
+        const end = page.getByRole("button", { name: "Terminer le tour" });
+        if (await end.count()) { await end.click(); await page.waitForTimeout(80); continue; }
+        break;
+      }
+      await offer.first().click(); await page.waitForTimeout(80);
+      if (!(await page.locator("button.animate-pulse").count())) { const end = page.getByRole("button", { name: "Terminer le tour" }); if (await end.count()) await end.click(); }
     }
-    report.push(`[plateau] partie jouée : ${n} décisions, débordement ${await over()} px`);
+    report.push(`[plateau] partie jouée : ${n} actions, boutique vue : ${sawShop}, fin de partie : ${(await page.getByText(/Victoire du|Égalité/).count()) > 0}, débordement ${await over()} px`);
     await page.getByRole("button", { name: /Annuler/ }).click();
-    if (process.env.MINIATURES) await thumb(page, "telephone-plateau-jeu", true);
-  } else report.push("[plateau] pas de méta disponible pour choisir les decks");
+      } else report.push("[plateau] pas de méta disponible pour choisir les decks");
   await ctx.close();
 }
 
