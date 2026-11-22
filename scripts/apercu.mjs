@@ -86,7 +86,8 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
     for (; n < 80; n++) {
       if (!shot && (await page.getByText("Boutique de Tox").count())) {
         sawShop = true; shot = true;
-        if (process.env.MINIATURES) await thumb(page, "telephone-plateau-boutique", true);
+        await page.getByText("Boutique de Tox").first().scrollIntoViewIfNeeded();
+        if (process.env.MINIATURES) await thumb(page, "telephone-plateau-boutique", false);
       }
       const pulse = page.locator("button.animate-pulse");
       if (await pulse.count()) { await pulse.first().click(); await page.waitForTimeout(80); continue; }
@@ -104,6 +105,8 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
       if (!(await page.locator("button.animate-pulse").count())) { const end = page.getByRole("button", { name: "Terminer le tour" }); if (await end.count()) await end.click(); }
     }
     report.push(`[plateau] partie jouée : ${n} actions, boutique vue : ${sawShop}, fin de partie : ${(await page.getByText(/Victoire du|Égalité/).count()) > 0}, débordement ${await over()} px`);
+    const wide = await page.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map((e) => `${e.tagName}.${String(e.className).slice(0, 80)} -> ${Math.round(e.getBoundingClientRect().right)}`));
+    if (wide.length) report.push(`[plateau] éléments trop larges : ${wide.join(" | ")}`);
     await page.getByRole("button", { name: /Annuler/ }).click();
       } else report.push("[plateau] pas de méta disponible pour choisir les decks");
   await ctx.close();
