@@ -21,7 +21,7 @@ const server = createServer(async (req, res) => {
 await mkdir(OUT, { recursive: true });
 const report = [];
 const browser = await chromium.launch();
-const PAGES = ["/", "/cartes/", "/collection/", "/simulateur/", "/meta/", "/impact/", "/plateau/", "/analyse/", "/tox/", "/patchs/"];
+const PAGES = ["/", "/cartes/", "/collection/", "/simulateur/", "/meta/", "/impact/", "/plateau/", "/conseiller/", "/analyse/", "/tox/", "/patchs/"];
 const VIEWS = { telephone: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 }, pc: { width: 1440, height: 900 } };
 /** Miniatures JPEG écrites dans le journal (base64), lisibles sans télécharger d'artefact. */
 const thumbs = [];
@@ -109,6 +109,34 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
     if (wide.length) report.push(`[plateau] éléments trop larges : ${wide.join(" | ")}`);
     await page.getByRole("button", { name: /Annuler/ }).click();
       } else report.push("[plateau] pas de méta disponible pour choisir les decks");
+  await ctx.close();
+}
+
+// conseiller de deck (téléphone) : analyse rapide d'un deck faible avec toutes les cartes
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => report.push(`[conseiller] erreur JS : ${e.message}`));
+  await page.goto("http://localhost:4173/conseiller/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const sels = page.locator("select").filter({ hasText: "— carte 1 —" });
+  if (await sels.count()) {
+    const opts = await sels.first().locator("option").evaluateAll((o) => o.slice(1, 40).map((x) => x.value));
+    const pick = [opts[0], opts[7], opts[14], opts[21]];
+    for (let i = 0; i < 4; i++) await page.locator("select").filter({ hasText: `— carte ${i + 1} —` }).selectOption(pick[i]);
+    await page.getByLabel(/Toutes les cartes du jeu/).check();
+    await page.getByLabel(/Rapide/).check();
+    const t0 = Date.now();
+    await page.getByRole("button", { name: /Analyser mon deck/ }).click();
+    try {
+      await page.getByRole("heading", { name: "Recommandations" }).waitFor({ timeout: 240000 });
+      const n = await page.locator("article").count();
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      report.push(`[conseiller] analyse terminée en ${Math.round((Date.now() - t0) / 1000)} s, ${n} recommandations, débordement ${over} px`);
+      await page.getByRole("heading", { name: "Recommandations" }).scrollIntoViewIfNeeded();
+      if (process.env.MINIATURES) await thumb(page, "telephone-conseiller", false);
+    } catch (e) { report.push(`[conseiller] ÉCHEC de l'analyse : ${String(e).slice(0, 120)}`); }
+  } else report.push("[conseiller] sélecteurs de cartes introuvables");
   await ctx.close();
 }
 

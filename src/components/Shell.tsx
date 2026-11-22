@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/", label: "Accueil" },
   { href: "/cartes", label: "Cartes" },
   { href: "/collection", label: "Ma collection" },
+  { href: "/conseiller", label: "Conseiller" },
   { href: "/simulateur", label: "Simulateur" },
   { href: "/meta", label: "Méta & Tier list" },
   { href: "/impact", label: "Impact" },

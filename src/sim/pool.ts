@@ -402,3 +402,108 @@ export async function buildMeta(sim: SimPool, all: number[], version: string, pr
   cb("Terminé", 1);
   return { version, sims: matches, decks, cards, candidates: ranked.length, combos: combos(all.length), at: new Date().toISOString() };
 }
+
+/* --------------------------- conseiller de deck --------------------------- */
+
+export interface AdviceSwap {
+  pos: number; out: number; in: number; tal: number[];
+  wr: number; lo: number; hi: number; n: number;
+  /** gain de taux de victoire par rapport au deck de départ, avec intervalle de confiance à 95 % */
+  d: number; dlo: number; dhi: number;
+}
+export interface AdviceTalent { pos: number; from: number; to: number; d: number }
+export interface Advice {
+  base: DeckStat;
+  /** talents retenus pour le deck de départ (ceux du joueur, ou les meilleurs trouvés) */
+  baseTal: number[];
+  talents: AdviceTalent[];
+  swaps: AdviceSwap[];
+  matches: number;
+  gauntlet: number;
+}
+interface AdviceParams { s1: number; keep: number; top: number; s2: number; tal: number }
+const ADVICE: Record<Precision, AdviceParams> = {
+  rapide: { s1: 3, keep: 16, top: 6, s2: 30, tal: 20 },
+  precis: { s1: 4, keep: 24, top: 8, s2: 80, tal: 40 },
+  maximal: { s1: 8, keep: 32, top: 10, s2: 200, tal: 80 },
+  extreme: { s1: 12, keep: 40, top: 12, s2: 500, tal: 150 },
+};
+const diffCI = (a: { w: number; n: number }, b: { w: number; n: number }): [number, number, number] => {
+  const p = a.w / Math.max(1, a.n), q = b.w / Math.max(1, b.n);
+  const se = Math.sqrt((p * (1 - p)) / Math.max(1, a.n) + (q * (1 - q)) / Math.max(1, b.n));
+  const d = p - q;
+  return [d, d - 1.96 * se, d + 1.96 * se];
+};
+
+/**
+ * Conseils pour un deck de 4 cartes : taux de victoire contre la méta, meilleurs talents, puis remplacement de chaque carte
+ * par chaque carte du pool. Les remplacements sont triés en deux temps (large puis fin) et le résultat final est remesuré
+ * avec de nouveaux tirages (pas de biais du « meilleur de beaucoup ») ; chaque variante affronte chaque adversaire avec les
+ * mêmes tirages que le deck de départ.
+ */
+export async function adviseDeck(
+  sim: SimPool, deck: DeckSpec, pool: number[], lvOf: (n: number) => number, gauntlet: DeckSpec[], precision: Precision, cb: ProgressCb,
+): Promise<Advice> {
+  const comp = sim.comp!;
+  const P = ADVICE[precision];
+  const opps = gauntlet.map((d) => withTalents(comp, d));
+  const seed0 = (Date.now() & 0xffffff) >>> 0;
+  let matches = 0;
+  const spec = (cards: number[], tal?: number[]): DeckSpec => ({ cards, lv: cards.map(lvOf), tal });
+  let base = withTalents(comp, spec(deck.cards, deck.tal));
+  const userTal = !!deck.tal;
+  // 1. talents du deck de départ
+  const baseTal0 = base.tal!.slice();
+  if (!userTal) {
+    cb("Choix des talents de votre deck", 0);
+    [base] = await optimizeTalents(sim, [base], opps, P.tal, 2, seed0 + 11, (p) => cb("Choix des talents de votre deck", p * 0.1));
+    matches += 13 * opps.length * P.tal * 2;
+  }
+  // le choix de talents n'est gardé que s'il gagne aussi avec de nouveaux tirages (sinon : talents d'origine)
+  let talents: AdviceTalent[] = [];
+  if (!userTal && base.tal!.some((t, i) => t !== baseTal0[i])) {
+    const orig = { ...base, tal: baseTal0 };
+    const stT = await evaluate(sim, [base, orig], opps, allPairs(2, opps.length), P.s2, seed0 + 4, false);
+    matches += 2 * opps.length * P.s2;
+    const [d, dlo] = diffCI(stT[0], stT[1]);
+    if (d > 0 && dlo > -0.005) {
+      const changed = base.tal!.map((t, pos) => ({ pos, from: baseTal0[pos], to: t })).filter((x) => x.from !== x.to);
+      talents = changed.map((x) => ({ ...x, d: d / changed.length }));
+    } else base = orig;
+  }
+  const baseTal = base.tal!.slice();
+  // 2. tri large : chaque remplacement possible (une carte à la fois)
+  const variants: { d: DeckSpec; pos: number; n: number }[] = [];
+  for (let pos = 0; pos < 4; pos++) {
+    for (const n of pool) {
+      if (base.cards.includes(n)) continue;
+      const cards = base.cards.slice(); cards[pos] = n;
+      const c = comp.byNum.get(n);
+      const tal = base.tal!.slice(); tal[pos] = c ? defaultTalent(c, lvOf(n)) : 0;
+      variants.push({ d: spec(cards, tal), pos, n });
+    }
+  }
+  const all1 = [base, ...variants.map((v) => v.d)];
+  const st1 = await evaluate(sim, all1, opps, allPairs(all1.length, opps.length), P.s1, seed0, false, (p) => cb("Essai de tous les remplacements possibles", 0.1 + p * 0.45));
+  matches += all1.length * opps.length * P.s1;
+  const order = variants.map((v, i) => ({ v, w: wr(st1[i + 1]) })).sort((a, b) => b.w - a.w).slice(0, P.keep).map((x) => x.v);
+  // 3. tri fin avec davantage de parties
+  const all2 = [base, ...order.map((v) => v.d)];
+  const st2 = await evaluate(sim, all2, opps, allPairs(all2.length, opps.length), P.s2, seed0 + 1, false, (p) => cb("Départage des meilleurs remplacements", 0.55 + p * 0.15));
+  matches += all2.length * opps.length * P.s2;
+  const finalists = order.map((v, i) => ({ v, w: wr(st2[i + 1]) })).sort((a, b) => b.w - a.w).slice(0, P.top).map((x) => x.v);
+  // 4. talents des finalistes, puis mesure finale avec de nouveaux tirages
+  const tunedAll = await optimizeTalents(sim, finalists.map((f) => f.d), opps, P.tal, 1, seed0 + 2, (p) => cb("Talents des meilleurs remplacements", 0.7 + p * 0.15));
+  matches += finalists.length * 13 * opps.length * P.tal;
+  const all3 = [base, ...tunedAll];
+  const st3 = await evaluate(sim, all3, opps, allPairs(all3.length, opps.length), P.s2, seed0 + 3, true, (p) => cb("Mesure finale", 0.85 + p * 0.15));
+  matches += all3.length * opps.length * P.s2;
+  const swaps: AdviceSwap[] = finalists.map((f, i) => {
+    const s = st3[i + 1];
+    const [lo, hi] = wilson(s.w, s.n);
+    const [d, dlo, dhi] = diffCI(s, st3[0]);
+    return { pos: f.pos, out: base.cards[f.pos], in: f.n, tal: tunedAll[i].tal ?? [], wr: s.w / Math.max(1, s.n), lo, hi, n: s.n, d, dlo, dhi };
+  }).sort((a, b) => b.d - a.d);
+  cb("Terminé", 1);
+  return { base: toDeckStat(base, st3[0]), baseTal, talents, swaps, matches, gauntlet: opps.length };
+}

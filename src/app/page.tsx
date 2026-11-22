@@ -24,6 +24,7 @@ const GROUPS = [
   {
     title: "Préparer son deck",
     items: [
+      { href: "/conseiller", t: "Conseiller de deck", d: "Entrez vos 4 cartes : le simulateur les joue contre la méta, teste chaque remplacement possible avec votre collection ou toutes les cartes, et chiffre les gains.", tag: "Nouveau" },
       { href: "/collection", t: "Ma collection", d: "Indiquez vos cartes et vos talents débloqués : le simulateur ne propose que ce que vous possédez.", tag: "" },
       { href: "/simulateur", t: "Simulateur de decks", d: "Évalue toutes les combinaisons de 4 cartes, puis simule des milliers de duels avec boutique, Chance et talents.", tag: "" },
     ],

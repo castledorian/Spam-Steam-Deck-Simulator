@@ -175,6 +175,8 @@ export function PlateauView() {
   // partie partagée par lien : #p=<base64>
   useEffect(() => {
     try {
+      const q = window.location.hash.match(/^#a=([\d,]+)(?:&t=([\d,]+))?$/);
+      if (q) { setA({ cards: q[1].split(",").map(Number), tal: q[2] ? q[2].split(",").map(Number) : undefined }); return; }
       const h = window.location.hash.match(/^#p=(.+)$/);
       if (!h) return;
       const o = JSON.parse(decodeURIComponent(atob(h[1]))) as { d: [Pick, Pick]; s: number; f: 0 | 1; t: number; h: 0 | 1 | null; a: number[] };
