@@ -8,6 +8,7 @@ import { Picker, type Pick } from "./AnalysisView";
 import { CardModal } from "./CardsBrowser";
 import { img, useSpam } from "./SpamProvider";
 import type { RawCard } from "@/sim/compile";
+import { PageHeader } from "./PageHeader";
 
 const SIDE_COLOR = ["#7bf08a", "#ff9a7a"];
 const SIDE_NAME = ["Deck A", "Deck B"];
@@ -50,20 +51,20 @@ function Tile({ c, raw, side, selected, fx, orb, onClick, abil, mode }: { c: Boa
         <span className="absolute right-1 top-1 flex gap-0.5 text-[11px] leading-none">{c.taunt && <span title="Provocation">🛡</span>}{c.frozen && <span title="Gelée">❄</span>}{c.poison > 0 && <span title="Empoisonnée">☠</span>}</span>
         {hit && <span className={`absolute inset-x-0 top-1/3 text-center font-display text-2xl drop-shadow-[0_2px_3px_rgba(0,0,0,.9)] ${hit[2].startsWith("+") ? "text-emerald-300" : "text-red-400"}`}>{hit[2]}</span>}
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-1 pb-0.5 pt-4">
-          <span className="block truncate text-[10px] leading-tight text-white sm:text-[11px]">{c.name}</span>
+          <span className="block truncate text-[11px] leading-tight text-white sm:text-[11px]">{c.name}</span>
           <span className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-white/15"><span className="block h-full rounded-full" style={{ width: `${pct * 100}%`, background: pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#fbbf24" : "#f87171" }} /></span>
-          <span className="block text-right text-[10px] leading-tight text-white/85">{c.alive ? `${c.hp.toLocaleString("fr-FR")} / ${c.max.toLocaleString("fr-FR")}` : "détruite"}</span>
+          <span className="block text-right text-[11px] leading-tight text-white/85">{c.alive ? `${c.hp.toLocaleString("fr-FR")} / ${c.max.toLocaleString("fr-FR")}` : "détruite"}</span>
         </span>
       </button>
       <div className="mt-1 flex flex-wrap gap-0.5">
         {c.abilities.map((a, k) => {
           const u = abil?.[k];
-          const cls = `max-w-full truncate rounded px-1 py-px text-[9px] leading-tight sm:text-[10px] ${u?.can ? "bg-emerald-400/25 text-emerald-100 ring-1 ring-emerald-300/60 hover:bg-emerald-400/45" : a.ready ? "bg-emerald-400/20 text-emerald-200" : "bg-white/8 text-white/50"} ${u?.hint ? "ring-2 !ring-amber-300" : ""}`;
+          const cls = `max-w-full truncate rounded px-1 py-px text-[11px] leading-tight sm:text-[11px] ${u?.can ? "bg-emerald-400/25 text-emerald-100 ring-1 ring-emerald-300/60 hover:bg-emerald-400/45" : a.ready ? "bg-emerald-400/20 text-emerald-200" : "bg-white/8 text-white/55"} ${u?.hint ? "ring-2 !ring-amber-300" : ""}`;
           const label = `${u?.hint ? "★ " : ""}${a.name} · ${a.ready ? "prête" : a.cd > 0 ? `${a.cd} t.` : "—"}`;
           return u?.can ? <button key={k} type="button" title={a.text} className={cls} onClick={u.onClick}>{label}</button> : <span key={k} title={a.text} className={cls}>{label}</span>;
         })}
-        {c.tox.map((t, k) => <span key={"t" + k} className="max-w-full truncate rounded bg-fuchsia-400/15 px-1 py-px text-[9px] leading-tight text-fuchsia-200 sm:text-[10px]">{toxName(t)}</span>)}
-        {c.alive && Array.from({ length: Math.max(0, SLOTS - c.abilities.length - c.tox.length) }, (_, k) => <span key={"e" + k} className="rounded border border-dashed border-white/20 px-1 py-px text-[9px] leading-tight text-white/30 sm:text-[10px]">emplacement libre</span>)}
+        {c.tox.map((t, k) => <span key={"t" + k} className="max-w-full truncate rounded bg-fuchsia-400/15 px-1 py-px text-[11px] leading-tight text-fuchsia-200 sm:text-[11px]">{toxName(t)}</span>)}
+        {c.alive && Array.from({ length: Math.max(0, SLOTS - c.abilities.length - c.tox.length) }, (_, k) => <span key={"e" + k} className="rounded border border-dashed border-white/20 px-1 py-px text-[11px] leading-tight text-white/55 sm:text-[11px]">emplacement libre</span>)}
       </div>
     </div>
   );
@@ -81,7 +82,7 @@ function Resources({ b, side }: { b: Board; side: number }) {
         return (
           <span key={e} title={`${EL_FR[i]} : bonus +${b.pts[side][i] * 10} %`} className={`flex items-center gap-1 rounded px-1 py-0.5 ${b.terrain === i ? "bg-white/12" : ""}`}>
             {ei && /* eslint-disable-next-line @next/next/no-img-element */ <img src={img(ei.icon)} alt={EL_FR[i]} className="h-4 w-4" />}
-            <span className={b.pts[side][i] ? "text-white" : "text-white/35"}>{b.pts[side][i]}</span>
+            <span className={b.pts[side][i] ? "text-white" : "text-white/55"}>{b.pts[side][i]}</span>
           </span>
         );
       })}
@@ -97,13 +98,13 @@ function Inspector({ c, raw, onOpen }: { c: BoardCard; raw?: RawCard; onOpen: ()
         {raw && <button className="btn !px-2 !py-1 text-xs" onClick={onOpen}>Voir la carte</button>}
       </div>
       <div className="grid grid-cols-6 gap-1 text-center">
-        {c.res.map((r, i) => <div key={i} className="rounded bg-black/25 py-0.5"><div className="text-[10px] text-white/45">{EL_FR[i].slice(0, 3)}</div><div className={r < 0 ? "text-red-300" : "text-white/85"}>{r}%</div></div>)}
+        {c.res.map((r, i) => <div key={i} className="rounded bg-black/25 py-0.5"><div className="text-[11px] text-white/55">{EL_FR[i].slice(0, 3)}</div><div className={r < 0 ? "text-red-300" : "text-white/85"}>{r}%</div></div>)}
       </div>
-      <div className="text-[11px] text-white/45">Résistances</div>
+      <div className="text-[11px] text-white/55">Résistances</div>
       {c.tox.length > 0 && <div className="flex flex-wrap gap-1">{c.tox.map((t, k) => <span key={k} className="rounded bg-fuchsia-400/15 px-1.5 py-0.5 text-fuchsia-200">{toxName(t)}{TOX_CATALOG.find((x) => x.fam === t.fam)?.desc ? "" : ""}</span>)}</div>}
       {c.abilities.map((a, k) => (
         <div key={k} className="rounded-lg bg-black/25 p-2">
-          <div className="flex justify-between gap-2"><b className="text-white">{a.name}</b><span className={a.ready ? "text-emerald-300" : "text-white/45"}>{a.ready ? "prête" : a.cd > 0 ? `recharge ${a.cd}` : "indisponible"}</span></div>
+          <div className="flex justify-between gap-2"><b className="text-white">{a.name}</b><span className={a.ready ? "text-emerald-300" : "text-white/55"}>{a.ready ? "prête" : a.cd > 0 ? `recharge ${a.cd}` : "indisponible"}</span></div>
           <div className="mt-1 whitespace-pre-wrap leading-snug text-white/65">{a.text.replace(/\n-{3,}\s*ou\s*-{3,}\n/g, "\n— ou —\n")}</div>
         </div>
       ))}
@@ -133,12 +134,12 @@ function ShopPanel({ shop, armed, setArmed, onReroll, onSkip, onBan, canBan, spa
             </button>
             {onBan && canBan(k) && <button type="button" className="rounded bg-red-400/15 px-2 py-0.5 text-[11px] text-red-200 hover:bg-red-400/30" onClick={() => onBan(k)}>Bannir cette famille</button>}
           </div>
-        ) : <div key={k} className="rounded-xl border border-white/10 p-2 text-xs text-white/40">Offre indisponible</div>)}
+        ) : <div key={k} className="rounded-xl border border-white/10 p-2 text-xs text-white/55">Offre indisponible</div>)}
       </div>
       <div className="flex flex-wrap gap-2">
         <button className="btn !py-1.5 text-sm" disabled={!onReroll} onClick={() => onReroll?.()}>🔄 Relancer ({shop.rerollCost})</button>
         <button className="btn !py-1.5 text-sm" disabled={!onSkip} onClick={() => onSkip?.()}>⏭ Passer (+10 Spamtons)</button>
-        {shop.banUsed && <span className="self-center text-[11px] text-white/45">Bannissement déjà utilisé sur cette boutique</span>}
+        {shop.banUsed && <span className="self-center text-[11px] text-white/55">Bannissement déjà utilisé sur cette boutique</span>}
       </div>
     </div>
   );
@@ -282,10 +283,7 @@ export function PlateauView() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Plateau</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">Regardez deux bots s&apos;affronter en direct, ou prenez la place du deck A comme dans le jeu : sur votre tour, lancez vos capacités et utilisez la boutique de Tox (acheter, relancer, passer, bannir) dans l&apos;ordre que vous voulez, puis terminez le tour. Le bot joue le deck B. Chaque partie est rejouable : <b>annuler</b> revient d&apos;une décision en arrière, <b>partager</b> copie un lien qui rouvre exactement la même partie.</p>
-      </div>
+      <PageHeader group="jouer" title="Plateau" lead="Regardez deux bots s'affronter, ou jouez le deck A contre un bot avec les vraies règles du tour." more={<p>Regardez deux bots s&apos;affronter en direct, ou prenez la place du deck A comme dans le jeu : sur votre tour, lancez vos capacités et utilisez la boutique de Tox (acheter, relancer, passer, bannir) dans l&apos;ordre que vous voulez, puis terminez le tour. Le bot joue le deck B. Chaque partie est rejouable : <b>annuler</b> revient d&apos;une décision en arrière, <b>partager</b> copie un lien qui rouvre exactement la même partie.</p>} />
 
       <details className="space-y-3" open={!game}>
         <summary className="cursor-pointer font-display text-lg text-white">Decks et options</summary>
@@ -365,12 +363,12 @@ export function PlateauView() {
                     <div className="font-semibold text-white">Carte pleine : que remplacer ?</div>
                     <p className="text-xs text-white/55">Un Tox prend la place d&apos;un autre passif ou d&apos;une capacité de la carte (une capacité à usage limité déjà utilisée ne sert plus à rien).</p>
                     {pick.map((ix) => <button key={ix} className="btn block w-full text-left" onClick={() => { setPick(null); answer(ix); }}>{pending.labels[ix].includes(" en remplaçant ") ? "Remplacer " + pending.labels[ix].split(" en remplaçant ")[1] : pending.labels[ix]}</button>)}
-                    <button className="text-xs text-white/50 underline" onClick={() => setPick(null)}>Fermer ce choix</button>
+                    <button className="text-xs text-white/55 underline" onClick={() => setPick(null)}>Fermer ce choix</button>
                   </div>
                 )}
                 <div className="panel flex flex-wrap items-center justify-between gap-2 p-3">
                   <div>
-                    <h2 className="font-display text-xl text-white">À vous de jouer <span className="text-sm text-white/45">· tour {pending.turn}</span></h2>
+                    <h2 className="font-display text-xl text-white">À vous de jouer <span className="text-sm text-white/55">· tour {pending.turn}</span></h2>
                     <p className="text-xs text-white/55">{pending.shop ? "La boutique s'ouvre au début du tour : achetez un Tox ou passez pour débloquer vos capacités." : <>Touchez une capacité <span className="text-emerald-300">verte</span> de votre deck pour la lancer, puis terminez le tour.</>}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-white/65">

@@ -7,6 +7,7 @@ import { CardModal } from "./CardsBrowser";
 import { DeckCards, DeckTalents, ToxPlan, WinBar, pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
 import type { RawCard } from "@/sim/compile";
+import { PageHeader } from "./PageHeader";
 
 const TIERS: { t: string; min: number; color: string }[] = [
   { t: "S", min: 0.75, color: "#ff7a7a" }, { t: "A", min: 0.5, color: "#ffb25a" }, { t: "B", min: 0.3, color: "#ffe45a" }, { t: "C", min: 0.12, color: "#9bf07a" }, { t: "D", min: 0, color: "#7ac8ff" },
@@ -43,12 +44,9 @@ export function MetaView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl text-white sm:text-4xl">Méta & Tier list</h1>
-          <p className="mt-1 max-w-3xl text-sm text-white/65">
-            Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Cette méta sert d&apos;adversaires de référence dans le simulateur.
-          </p>
+          <PageHeader group="comprendre" title="Méta & tier list" lead="Les meilleurs decks du patch, classés par taux de victoire avec leur marge d'erreur." more={<p>Les meilleurs decks de <b>toutes les cartes du jeu</b> (talents débloqués) s&apos;affrontent entre eux avec boutique de Tox, Chance et passifs. Cette méta sert d&apos;adversaires de référence dans le simulateur.</p>} />
           {meta && (
-            <p className="mt-2 text-xs text-white/55">
+            <p className="mt-2 text-xs text-white/60">
               {metaSource === "lab"
                 ? <>Méta de référence calculée par le site après chaque patch ({meta.sims.toLocaleString("fr-FR")} parties). Rien à lancer.</>
                 : <>Méta calculée dans ce navigateur.{lab && <> <button className="underline hover:text-white" onClick={resetToLabMeta}>Revenir à la méta de référence du site</button></>}</>}
@@ -71,23 +69,23 @@ export function MetaView() {
       {meta && (
         <>
           <div className="panel grid grid-cols-2 gap-3 p-4 text-center sm:grid-cols-4">
-            <div><div className="font-display text-2xl">{meta.combos.toLocaleString("fr-FR")}</div><div className="text-xs text-white/50">decks de 4 cartes évalués</div></div>
-            <div><div className="font-display text-2xl">{meta.candidates}</div><div className="text-xs text-white/50">candidats retenus</div></div>
-            <div><div className="font-display text-2xl">{meta.sims.toLocaleString("fr-FR")}</div><div className="text-xs text-white/50">matchs simulés</div></div>
-            <div><div className="font-display text-2xl">patch {meta.version}</div><div className="text-xs text-white/50">calculée le {new Date(meta.at).toLocaleDateString("fr-FR")}</div></div>
+            <div><div className="font-display text-2xl">{meta.combos.toLocaleString("fr-FR")}</div><div className="text-xs text-white/55">decks de 4 cartes évalués</div></div>
+            <div><div className="font-display text-2xl">{meta.candidates}</div><div className="text-xs text-white/55">candidats retenus</div></div>
+            <div><div className="font-display text-2xl">{meta.sims.toLocaleString("fr-FR")}</div><div className="text-xs text-white/55">matchs simulés</div></div>
+            <div><div className="font-display text-2xl">patch {meta.version}</div><div className="text-xs text-white/55">calculée le {new Date(meta.at).toLocaleDateString("fr-FR")}</div></div>
           </div>
 
           {lab && lab.expert.decks.length > 0 && <ExpertMeta />}
 
           <section className="space-y-3">
             <h2 className="font-display text-2xl text-white">Meilleurs decks (decks contre decks)</h2>
-            <p className="text-xs text-white/50">Taux de victoire moyen face aux autres decks du championnat (50 % = équilibre), intervalle de confiance à 95 %.</p>
+            <p className="text-xs text-white/55">Taux de victoire moyen face aux autres decks du championnat (50 % = équilibre), intervalle de confiance à 95 %.</p>
             {meta.decks.slice(0, 12).map((d, i) => (
               <article key={i} className="panel p-4">
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                   <div className="font-display text-3xl text-[#ffc756]">#{i + 1}</div>
                   <DeckCards cards={d.cards} size={68} />
-                  <div className="min-w-0 flex-1 basis-56 space-y-1"><div className="text-xs text-white/45">Plan de Tox</div><ToxPlan tox={d.tox} max={6} /></div>
+                  <div className="min-w-0 flex-1 basis-56 space-y-1"><div className="text-xs text-white/55">Plan de Tox</div><ToxPlan tox={d.tox} max={6} /></div>
                   <div className="w-full sm:w-auto"><WinBar d={d} /></div>
                 </div>
                 <DeckTalents cards={d.cards} tal={d.tal} />
@@ -97,12 +95,12 @@ export function MetaView() {
 
           <section className="space-y-3">
             <h2 className="font-display text-2xl text-white">Tier list des cartes</h2>
-            <p className="text-xs text-white/50">Classement par présence et taux de victoire dans les meilleurs decks simulés.</p>
+            <p className="text-xs text-white/55">Classement par présence et taux de victoire dans les meilleurs decks simulés.</p>
             {tiers.map((t) => (
               <div key={t.t} className="panel flex gap-3 p-3">
                 <div className="flex h-12 w-10 shrink-0 items-center justify-center rounded-xl font-display text-3xl text-black sm:h-16 sm:w-14 sm:text-4xl" style={{ background: t.color }}>{t.t}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {t.cards.length === 0 && <span className="self-center text-sm text-white/35">—</span>}
+                  {t.cards.length === 0 && <span className="self-center text-sm text-white/55">—</span>}
                   {t.cards.map(({ c }) => {
                     const e = meta.cards[c.number];
                     return <div key={c.number} className="text-center"><CardChip card={c} size={54} onClick={() => setOpen(byNum.get(c.number) ?? null)} title={e ? `${c.name} — dans ${e.decks} decks du top, ${pct(e.wr, 0)}` : c.name} /></div>;
@@ -137,7 +135,7 @@ function ExpertMeta() {
               <div className="w-9 font-display text-2xl text-[#ffc756]">#{rank + 1}</div>
               <DeckCards cards={d.cards} size={52} />
               <div className="flex-1" />
-              <div className="text-right text-xs text-white/50">IA rapide : {pct(d.heur)}<br /><span className={delta >= 0 ? "text-emerald-300" : "text-red-300"}>écart {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1).replace(".", ",")} pts</span></div>
+              <div className="text-right text-xs text-white/55">IA rapide : {pct(d.heur)}<br /><span className={delta >= 0 ? "text-emerald-300" : "text-red-300"}>écart {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1).replace(".", ",")} pts</span></div>
               <div className="w-full sm:w-auto"><WinBar d={d} /></div>
             </article>
           );

@@ -114,6 +114,24 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
   await ctx.close();
 }
 
+// menu de navigation : ouverture sur PC (rubrique) et sur téléphone (bouton Menu)
+{
+  for (const [name, vp, mobile] of [["pc", { width: 1440, height: 900 }, false], ["telephone", { width: 390, height: 844 }, true]]) {
+    const ctx = await browser.newContext({ viewport: vp, isMobile: mobile, hasTouch: mobile, locale: "fr-FR" });
+    const page = await ctx.newPage();
+    await page.goto("http://localhost:4173/", { waitUntil: "networkidle" });
+    await page.waitForTimeout(800);
+    if (mobile) await page.getByRole("button", { name: "Menu" }).dispatchEvent("click");
+    else await page.getByRole("button", { name: /^Optimiser/ }).dispatchEvent("click");
+    await page.waitForTimeout(300);
+    const links = await page.locator("header nav a").count();
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    report.push(`[menu ${name}] ${links} lien(s) visibles, débordement ${over} px`);
+    await thumb(page, `${name}-menu`, false);
+    await ctx.close();
+  }
+}
+
 // graphique de la Chance (page Tox) : les barres doivent avoir une hauteur
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "fr-FR" });

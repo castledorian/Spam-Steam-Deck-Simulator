@@ -6,6 +6,7 @@ import { CardChip } from "./CardView";
 import { CardModal } from "./CardsBrowser";
 import { pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 const RAR_COLOR = ["text-zinc-300", "text-cyan-300", "text-fuchsia-300", "text-amber-300"];
 const pts = (d: number) => `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1).replace(".", ",")} pts`;
@@ -73,12 +74,7 @@ export function ImpactView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Impact sur la victoire</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Ce que chaque Tox, carte, talent, capacité et point d&apos;élément apporte <b>réellement</b> au taux de victoire, mesuré par expérience : la même partie est rejouée avec et sans l&apos;élément testé (mêmes tirages), dans les {lab.meta.decks.length > 0 ? "meilleurs decks de la méta" : "decks de référence"}. Calculé sur le serveur pour le patch {lab.version} : {lab.games.toLocaleString("fr-FR")} parties simulées.
-        </p>
-      </div>
+      <PageHeader group="comprendre" title="Impact sur la victoire" lead="Ce que chaque Tox, carte, talent ou capacité rapporte réellement, mesuré en rejouant les mêmes parties avec et sans." more={<p>Ce que chaque Tox, carte, talent, capacité et point d&apos;élément apporte <b>réellement</b> au taux de victoire, mesuré par expérience : la même partie est rejouée avec et sans l&apos;élément testé (mêmes tirages), dans les {lab.meta.decks.length > 0 ? "meilleurs decks de la méta" : "decks de référence"}. Calculé sur le serveur pour le patch {lab.version} : {lab.games.toLocaleString("fr-FR")} parties simulées.</p>} />
 
       <div className="flex flex-wrap gap-2">
         <button className="chip !px-4 !py-2 !text-sm" data-on={tab === "tox"} onClick={() => setTab("tox")}>Tox</button>
@@ -101,14 +97,14 @@ export function ImpactView() {
           <div className="panel divide-y divide-white/5">
             {shownTox.map((t, i) => (
               <div key={`${t.fam}:${t.el}:${t.r}`} className="grid grid-cols-[2rem_1fr] gap-x-3 gap-y-1.5 p-3 sm:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem] sm:items-center">
-                <div className="font-display text-lg text-white/40">{i + 1}</div>
+                <div className="font-display text-lg text-white/55">{i + 1}</div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm text-white"><span className={RAR_COLOR[t.r]}>{t.name}</span> <span className="text-white/45">{RAR_LETTER[t.r]}{t.v !== null && t.v !== undefined && t.v > 1 ? ` · ${t.v}` : ""}{t.price ? ` · ${t.price} Sp.` : ""}</span></div>
-                  <div className="truncate text-[11px] text-white/40" title={t.desc}>{t.desc}</div>
+                  <div className="truncate text-sm text-white"><span className={RAR_COLOR[t.r]}>{t.name}</span> <span className="text-white/55">{RAR_LETTER[t.r]}{t.v !== null && t.v !== undefined && t.v > 1 ? ` · ${t.v}` : ""}{t.price ? ` · ${t.price} Sp.` : ""}</span></div>
+                  <div className="truncate text-xs text-white/55" title={t.desc}>{t.desc}</div>
                 </div>
-                <div className="col-span-2 grid grid-cols-[3rem_1fr_4.6rem] items-center gap-2 sm:col-span-1"><span className="text-[11px] text-white/45">tôt</span><Delta d={t.d2} lo={t.t2?.lo} hi={t.t2?.hi} max={maxTox} /><span className={`text-right text-xs ${t.d2 >= 0 ? "text-emerald-300" : "text-red-300"}`}>{pts(t.d2)}</span></div>
-                <div className="col-span-2 grid grid-cols-[3rem_1fr_4.6rem] items-center gap-2 sm:col-span-1"><span className="text-[11px] text-white/45">tard</span><Delta d={t.d8} lo={t.t8?.lo} hi={t.t8?.hi} max={maxTox} /><span className={`text-right text-xs ${t.d8 >= 0 ? "text-emerald-300" : "text-red-300"}`}>{pts(t.d8)}</span></div>
-                <div className="col-span-2 text-xs text-white/60 sm:col-span-1 sm:text-right">{t.price ? <>{pts(t.per100)}<span className="text-white/35"> /100 Sp.</span></> : "—"}</div>
+                <div className="col-span-2 grid grid-cols-[3rem_1fr_4.6rem] items-center gap-2 sm:col-span-1"><span className="text-xs text-white/55">tôt</span><Delta d={t.d2} lo={t.t2?.lo} hi={t.t2?.hi} max={maxTox} /><span className={`text-right text-xs ${t.d2 >= 0 ? "text-emerald-300" : "text-red-300"}`}>{pts(t.d2)}</span></div>
+                <div className="col-span-2 grid grid-cols-[3rem_1fr_4.6rem] items-center gap-2 sm:col-span-1"><span className="text-xs text-white/55">tard</span><Delta d={t.d8} lo={t.t8?.lo} hi={t.t8?.hi} max={maxTox} /><span className={`text-right text-xs ${t.d8 >= 0 ? "text-emerald-300" : "text-red-300"}`}>{pts(t.d8)}</span></div>
+                <div className="col-span-2 text-xs text-white/60 sm:col-span-1 sm:text-right">{t.price ? <>{pts(t.per100)}<span className="text-white/55"> /100 Sp.</span></> : "—"}</div>
               </div>
             ))}
           </div>
@@ -129,7 +125,7 @@ export function ImpactView() {
               const abs = (abBy.get(c.num) ?? []).slice().sort((a, b) => a.ab - b.ab);
               return (
                 <div key={c.num} className="flex gap-3 p-3">
-                  <div className="w-8 shrink-0 pt-1 font-display text-lg text-white/40">{rank}</div>
+                  <div className="w-8 shrink-0 pt-1 font-display text-lg text-white/55">{rank}</div>
                   <CardChip card={card} size={52} onClick={() => setOpen(card)} />
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -140,7 +136,7 @@ export function ImpactView() {
                       {c.tal.map((t) => {
                         const tt = card.talents.find((x) => x.slot === t.slot);
                         return (
-                          <span key={t.slot} title={tt?.effect} className={`rounded-full px-2 py-0.5 text-[11px] ${t.slot === c.best ? "bg-[#ff9ad5]/20 text-[#ff9ad5]" : "bg-black/35 text-white/55"}`}>
+                          <span key={t.slot} title={tt?.effect} className={`rounded-full px-2 py-0.5 text-xs ${t.slot === c.best ? "bg-[#ff9ad5]/20 text-[#ff9ad5]" : "bg-black/35 text-white/55"}`}>
                             {tt ? tt.name : "sans talent"} · {pct(t.wr, 0)}
                           </span>
                         );
@@ -149,7 +145,7 @@ export function ImpactView() {
                     {abs.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {abs.map((a) => (
-                          <span key={a.ab} className="rounded-full bg-black/35 px-2 py-0.5 text-[11px] text-white/60" title="Perte de taux de victoire si la capacité n'est jamais utilisée">
+                          <span key={a.ab} className="rounded-full bg-black/35 px-2 py-0.5 text-xs text-white/60" title="Perte de taux de victoire si la capacité n'est jamais utilisée">
                             {card.abilities[a.ab]?.name ?? `capacité ${a.ab + 1}`} <span className={a.d >= 0 ? "text-emerald-300" : "text-red-300"}>{pts(a.d)}</span>
                           </span>
                         ))}
@@ -182,7 +178,7 @@ export function ImpactView() {
         </section>
       )}
 
-      <p className="text-xs text-white/40">Calcul du {new Date(lab.at).toLocaleString("fr-FR")} · {lab.cores} cœurs · {Math.round(lab.seconds / 60)} min · IA rapide réglée par auto-apprentissage (parties simulées contre elle-même et analyse des choix de l&apos;IA experte).</p>
+      <p className="text-xs text-white/55">Calcul du {new Date(lab.at).toLocaleString("fr-FR")} · {lab.cores} cœurs · {Math.round(lab.seconds / 60)} min · IA rapide réglée par auto-apprentissage (parties simulées contre elle-même et analyse des choix de l&apos;IA experte).</p>
       {open && <CardModal card={open} onClose={() => setOpen(null)} />}
     </div>
   );

@@ -277,3 +277,21 @@ test("les bots remplacent une capacité à usage unique épuisée par un Tox", (
   }
   assert.ok(replacedMue > 0, "au moins une partie où Mue épuisée est remplacée");
 });
+
+test("invariants : 3 emplacements max, PV bornés, Spamtons négatifs seulement si l'adversaire a le talent Dette", () => {
+  const rng = mulberry32(21);
+  const nums = comp.cards.map((c) => c.num);
+  const pick = (): DeckSpec => { const s = new Set<number>(); while (s.size < 4) s.add(nums[Math.floor(rng() * nums.length)]); const cards = [...s]; return { cards, lv: [3, 3, 3, 3], tal: cards.map(() => 1 + Math.floor(rng() * 3)) }; };
+  const debt = new Set(comp.cards.filter((c) => c.talents.some((t) => /Dette/.test(t.id))).map((c) => c.num));
+  let over = 0, frames = 0;
+  for (let i = 0; i < 300; i++) {
+    const fr: import("../src/sim/engine").Frame[] = []; const d = [pick(), pick()];
+    playMatch(comp, d, mulberry32(i), { frames: fr, log: [], first: (i & 1) as 0 | 1 });
+    for (const f of fr) {
+      frames++;
+      f.board.cards.forEach((side) => side.forEach((c) => { if (c.abilities.length + c.tox.length > 3) over++; assert.ok(c.hp >= 0 && c.hp <= c.max + 0.5, `PV hors bornes : ${c.name}`); }));
+      f.board.spam.forEach((sp, si) => { if (sp < -0.5) assert.ok(d[1 - si].cards.some((n, j) => debt.has(n) && /Dette/.test(comp.byNum.get(n)!.talents.find((t) => t.slot === d[1 - si].tal![j])?.id ?? "")), "Spamtons négatifs sans talent Dette actif chez l'adversaire"); });
+    }
+  }
+  assert.ok(over / frames < 0.002, `dépassement d'emplacements : ${over}/${frames}`);
+});

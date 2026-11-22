@@ -95,7 +95,7 @@ export function CardChip({ card, size = 56, onClick, title }: { card: RawCard; s
     <button type="button" onClick={onClick} title={title ?? card.name} className="group relative shrink-0 overflow-hidden rounded-xl border border-white/15 bg-[#0b0618] transition hover:border-white/50" style={{ width: size, aspectRatio: `${card.artwork.width}/${card.artwork.height}` }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={img(card.artwork.tiny)} alt={card.name} loading="lazy" decoding="async" className="h-full w-full object-contain" />
-      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1 pb-0.5 pt-3 text-[9px] leading-tight text-white">{card.name}</span>
+      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1 pb-0.5 pt-3 text-xs leading-tight text-white">{card.name}</span>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {orb && <img src={orb} alt={card.element} className="absolute left-0 top-0 drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]" style={{ width: Math.max(18, size * 0.46), height: Math.max(18, size * 0.46) }} />}
     </button>

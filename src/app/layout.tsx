@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-screen antialiased">
         <SpamProvider>
           <Nav />
-          <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6">{children}</main>
+          <main id="contenu" tabIndex={-1} className="mx-auto outline-none w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6">{children}</main>
           <Footer />
         </SpamProvider>
       </body>

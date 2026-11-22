@@ -5,39 +5,7 @@ import { CardView } from "@/components/CardView";
 import { DeckCards, pct, toxLabel } from "@/components/DeckRow";
 import { usePatches } from "@/components/PatchesView";
 import { useSpam } from "@/components/SpamProvider";
-
-const GROUPS = [
-  {
-    title: "Jouer et regarder",
-    items: [
-      { href: "/plateau", t: "Plateau", d: "Deux bots s'affrontent en direct, ou jouez vous-même le deck A : capacités, boutique de Tox (acheter, relancer, passer, bannir) et fin de tour comme dans le jeu.", tag: "Nouveau" },
-      { href: "/analyse", t: "Analyse de partie", d: "Une IA experte teste chaque coup sur des dizaines de fins de partie, comme un moteur d'échecs, et montre le pourcentage de victoire de chaque choix.", tag: "Nouveau" },
-    ],
-  },
-  {
-    title: "Comprendre ce qui gagne",
-    items: [
-      { href: "/meta", t: "Méta & tier list", d: "Les meilleurs decks s'affrontent entre eux : classement avec intervalle de confiance, et classement rejoué par l'IA experte.", tag: "" },
-      { href: "/impact", t: "Impact sur la victoire", d: "Ce que rapporte vraiment chaque Tox, carte, talent, capacité et point d'élément, mesuré par des millions de parties.", tag: "Nouveau" },
-    ],
-  },
-  {
-    title: "Préparer son deck",
-    items: [
-      { href: "/conseiller", t: "Conseiller de deck", d: "Entrez vos 4 cartes : le simulateur les joue contre la méta, teste chaque remplacement possible avec votre collection ou toutes les cartes, et chiffre les gains.", tag: "Nouveau" },
-      { href: "/collection", t: "Ma collection", d: "Indiquez vos cartes et vos talents débloqués : le simulateur ne propose que ce que vous possédez.", tag: "" },
-      { href: "/simulateur", t: "Simulateur de decks", d: "Évalue toutes les combinaisons de 4 cartes, puis simule des milliers de duels avec boutique, Chance et talents.", tag: "" },
-    ],
-  },
-  {
-    title: "Références",
-    items: [
-      { href: "/cartes", t: "Base de données", d: "Toutes les cartes avec illustrations officielles, capacités, résistances, passifs, talents et histoire, et l'impact mesuré de chacune.", tag: "" },
-      { href: "/tox", t: "Tox & talents", d: "Catalogue des passifs, prix, probabilités de la boutique selon la Chance, glossaire.", tag: "" },
-      { href: "/patchs", t: "Patchs automatiques", d: "Synchronisation avec le SpamDex officiel, différences entre versions, laboratoire relancé à chaque patch.", tag: "" },
-    ],
-  },
-];
+import { NAV } from "@/components/nav";
 
 const nf = (n: number) => n.toLocaleString("fr-FR");
 
@@ -56,28 +24,26 @@ export default function Home() {
     <div className="space-y-12">
       <section className="grid items-center gap-8 pt-4 lg:grid-cols-[1.2fr_1fr]">
         <div className="space-y-5">
-          <p className="inline-block rounded-full border border-[#ffc756]/40 bg-[#ffc756]/10 px-3 py-1 text-xs text-[#ffc756]">Projet de fan non officiel · données du SpamDex de Ticroco</p>
-          <h1 className="font-display text-5xl leading-tight text-white sm:text-6xl">
-            Trouvez le <span className="text-[#ffc756]">meilleur deck SPAM</span> avec les cartes que vous possédez.
+          <h1 className="font-display text-4xl leading-tight text-white sm:text-5xl lg:text-6xl">
+            Le <span className="text-[#ffc756]">meilleur deck SPAM</span> avec les cartes que vous possédez.
           </h1>
-          <p className="max-w-xl text-lg text-white/70">
-            Toutes les données du jeu Steam, mises à jour à chaque patch, un simulateur qui rejoue des millions de duels — boutique de Tox, passifs, talents et résistances inclus — et un plateau pour regarder ou jouer un match vous-même.
+          <p className="max-w-[56ch] text-lg leading-relaxed text-white/75">
+            Entrez votre deck : le simulateur le rejoue des milliers de fois contre la méta et vous dit quoi changer, avec la marge d&apos;erreur de chaque gain.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link href="/plateau" className="btn btn-primary !px-6 !py-3 text-base">Jouer sur le plateau</Link>
-            <Link href="/collection" className="btn !px-6 !py-3 text-base">Ma collection</Link>
-            <Link href="/meta" className="btn !px-6 !py-3 text-base">Voir la méta</Link>
+            <Link href="/conseiller" className="btn btn-primary !px-6 !py-3 text-base">Optimiser mon deck</Link>
+            <Link href="/plateau" className="btn !px-6 !py-3 text-base">Jouer un match</Link>
           </div>
-          <div className="grid max-w-xl grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
+          <dl className="grid max-w-md grid-cols-3 gap-3 pt-2">
             {[
               [loading ? "…" : String(cards.length), "cartes"],
-              [ds ? ds.version : "…", "patch actuel"],
+              [ds ? ds.version : "…", "patch"],
               [lab ? `${(lab.games / 1e6).toFixed(1).replace(".", ",")} M` : "…", "parties simulées"],
-              [String(Object.keys(collection).length), "cartes possédées"],
             ].map(([v, l]) => (
-              <div key={l} className="panel p-3 text-center"><div className="font-display text-2xl text-white">{v}</div><div className="text-[11px] text-white/50">{l}</div></div>
+              <div key={l} className="panel p-3 text-center"><dd className="font-display text-2xl text-white">{v}</dd><dt className="text-xs text-white/65">{l}</dt></div>
             ))}
-          </div>
+          </dl>
+          <p className="text-xs text-white/60">Projet de fan non officiel · données du SpamDex de Ticroco</p>
         </div>
         <div className="relative mx-auto flex w-full max-w-md justify-center">
           {hero.map((c, i) => c && (
@@ -86,6 +52,23 @@ export default function Home() {
             </div>
           ))}
           <div className="aspect-[4/3.6] w-full" />
+        </div>
+      </section>
+
+      <section aria-labelledby="plan" className="space-y-4">
+        <h2 id="plan" className="font-display text-2xl text-white">Que voulez-vous faire ?</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {NAV.map((g) => (
+            <div key={g.id} className="panel space-y-1 p-4">
+              <h3 className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#ffc756]">{g.label}</h3>
+              {g.items.map((i) => (
+                <Link key={i.href} href={i.href} className="block rounded-lg px-2 py-2 transition hover:bg-white/8">
+                  <span className="block font-semibold text-white">{i.label}</span>
+                  <span className="block text-sm leading-snug text-white/65">{i.desc}</span>
+                </Link>
+              ))}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -101,7 +84,7 @@ export default function Home() {
           <div className="grid gap-3 lg:grid-cols-3">
             {topMeta.map((d, i) => (
               <div key={i} className="space-y-2 rounded-xl bg-black/25 p-3">
-                <div className="flex items-center justify-between text-sm"><span className="font-display text-lg text-[#ffc756]">n° {i + 1}</span><span className="text-white/70">{pct(d.wr)} <span className="text-[11px] text-white/40">({pct(d.lo)} – {pct(d.hi)})</span></span></div>
+                <div className="flex items-center justify-between text-sm"><span className="font-display text-lg text-[#ffc756]">n° {i + 1}</span><span className="text-white/70">{pct(d.wr)} <span className="text-xs text-white/60">({pct(d.lo)} – {pct(d.hi)})</span></span></div>
                 <DeckCards cards={d.cards} size={64} />
                 <p className="text-xs text-white/55">{d.cards.map(nameOf).join(" · ")}</p>
               </div>
@@ -129,23 +112,6 @@ export default function Home() {
         </section>
       )}
 
-      <section className="space-y-6">
-        {GROUPS.map((g) => (
-          <div key={g.title} className="space-y-3">
-            <h2 className="font-display text-xl text-white/80">{g.title}</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {g.items.map((f) => (
-                <Link key={f.href} href={f.href} className="panel group relative p-5 transition hover:-translate-y-1 hover:border-[#ffc756]/50 hover:bg-white/8">
-                  {f.tag && <span className="absolute right-3 top-3 rounded-full bg-[#ffc756] px-2 py-0.5 text-[10px] font-bold text-black">{f.tag}</span>}
-                  <h3 className="font-display text-2xl text-white group-hover:text-[#ffc756]">{f.t}</h3>
-                  <p className="mt-1 text-sm text-white/65">{f.d}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
-
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="panel space-y-3 p-5">
           <h2 className="font-display text-2xl text-white">Dernier patch</h2>
@@ -159,16 +125,16 @@ export default function Home() {
             </>
           ) : <p className="text-sm text-white/60">Version {ds?.version ?? "…"}{info?.source === "direct" ? " (lue en direct sur le SpamDex)" : ""}. L&apos;historique se met à jour automatiquement.</p>}
         </div>
-        <div className="panel space-y-3 p-5">
-          <h2 className="font-display text-2xl text-white">Comment fonctionne la simulation ?</h2>
-          <ol className="list-decimal space-y-1.5 pl-5 text-sm text-white/70">
-            <li>Le moteur rejoue un duel complet avec les règles du jeu : recharges, éléments, critiques, résistances, Spamtons, boutique de Tox (Chance, rareté, relances), passifs et talents.</li>
-            <li>Deux IA jouent : une IA rapide, apprise sur les décisions d&apos;une IA experte qui teste chaque choix comme un moteur d&apos;échecs, pour les millions de parties de la méta.</li>
-            <li>Après chaque patch, un laboratoire calcule la méta et l&apos;impact de chaque Tox, carte, talent et capacité ; les résultats sont publiés sur le site sans rien à lancer.</li>
+        <details className="panel space-y-3 p-5 text-sm text-white/70">
+          <summary className="cursor-pointer font-display text-2xl text-white">Comment fonctionne la simulation ?</summary>
+          <ol className="mt-3 list-decimal space-y-1.5 pl-5">
+            <li>Le moteur rejoue un duel complet : recharges, éléments, critiques, résistances, Spamtons, boutique de Tox, passifs et talents.</li>
+            <li>Une IA rapide, apprise sur les décisions d&apos;une IA experte, joue les millions de parties de la méta.</li>
+            <li>Après chaque patch, un laboratoire recalcule la méta et l&apos;impact de chaque élément ; rien à lancer.</li>
             <li>Chaque taux de victoire est donné avec son intervalle de confiance à 95 %.</li>
           </ol>
-          <p className="text-xs text-white/45">Limites : le simulateur n&apos;est pas calibré sur des parties réelles (aucune donnée publique), quelques effets au texte ambigu sont des interprétations (Immunité, Gel), et l&apos;effet Fumée n&apos;est pas simulé.</p>
-        </div>
+          <p className="text-xs text-white/60">Limites : le simulateur n&apos;est pas calibré sur des parties réelles (aucune donnée publique), quelques effets au texte ambigu sont des interprétations, et l&apos;effet Fumée n&apos;est pas simulé.</p>
+        </details>
       </section>
     </div>
   );

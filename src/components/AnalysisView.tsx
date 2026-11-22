@@ -6,6 +6,7 @@ import type { AnalyseOut } from "@/sim/pool";
 import type { DecisionRec } from "@/sim/search";
 import { DeckCards, DeckTalents, pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 export interface Pick { cards: number[]; tal?: number[] }
 const KIND: Record<DecisionRec["kind"], string> = { cast: "Ordre des capacités", target: "Cible", shop: "Boutique", option: "Choix", turn: "Tour" };
@@ -66,7 +67,7 @@ function WinCurve({ ds }: { ds: DecisionRec[] }) {
         <path d={`${path} L${W},${H} L0,${H} Z`} fill="rgba(123,240,138,.12)" />
         <path d={path} fill="none" stroke="#7bf08a" strokeWidth={2} vectorEffect="non-scaling-stroke" />
       </svg>
-      <div className="flex justify-between text-[11px] text-white/40"><span>début</span><span>50 %</span><span>fin</span></div>
+      <div className="flex justify-between text-xs text-white/55"><span>début</span><span>50 %</span><span>fin</span></div>
     </div>
   );
 }
@@ -80,15 +81,15 @@ function DecisionCard({ d }: { d: DecisionRec }) {
     <div className={`rounded-xl border p-2.5 ${diff && gain >= 0.05 ? "border-amber-300/40 bg-amber-300/5" : "border-white/10 bg-black/25"}`}>
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span><b style={{ color: me }}>{d.side === 0 ? "A" : "B"}</b> · {KIND[d.kind]}</span>
-        {diff ? <span className="text-amber-200">l&apos;IA rapide aurait joué autrement ({gain >= 0 ? "−" : "+"}{Math.abs(gain * 100).toFixed(0)} pts)</span> : <span className="text-white/40">même choix que l&apos;IA rapide</span>}
+        {diff ? <span className="text-amber-200">l&apos;IA rapide aurait joué autrement ({gain >= 0 ? "−" : "+"}{Math.abs(gain * 100).toFixed(0)} pts)</span> : <span className="text-white/55">même choix que l&apos;IA rapide</span>}
       </div>
       <div className="space-y-1">
         {order.map((o) => (
           <div key={o.i} className="grid grid-cols-[1fr_auto] items-center gap-x-2 text-xs">
             <span className={`truncate ${o.i === d.chosen ? "text-white" : "text-white/55"}`} title={o.l}>
-              {o.i === d.chosen ? "✔ " : ""}{o.l}{o.i === d.def && diff ? <span className="text-white/40"> (IA rapide)</span> : null}
+              {o.i === d.chosen ? "✔ " : ""}{o.l}{o.i === d.def && diff ? <span className="text-white/55"> (IA rapide)</span> : null}
             </span>
-            <span className={o.i === d.chosen ? "text-white" : "text-white/50"}>{Number.isNaN(o.wr) ? "—" : pct(o.wr, 0)}</span>
+            <span className={o.i === d.chosen ? "text-white" : "text-white/55"}>{Number.isNaN(o.wr) ? "—" : pct(o.wr, 0)}</span>
             <div className="col-span-2 h-1.5 rounded-full bg-white/8"><div className="h-1.5 rounded-full" style={{ width: `${(o.wr || 0) * 100}%`, background: o.i === d.chosen ? me : "rgba(255,255,255,.25)" }} /></div>
           </div>
         ))}
@@ -146,12 +147,7 @@ export function AnalysisView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Analyse de partie</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Une partie jouée par l&apos;<b>IA experte</b>, comme un moteur d&apos;échecs : à chaque décision (cible, ordre des capacités, achat ou relance en boutique, option d&apos;un « Choix »), chaque possibilité est jouée puis la partie est terminée des dizaines de fois avec des tirages différents. Vous voyez le pourcentage de victoire de chaque option, le coup retenu et les endroits où l&apos;IA rapide (celle des tournois de decks) se serait trompée.
-        </p>
-      </div>
+      <PageHeader group="jouer" title="Analyse de partie" lead="Rejouez une partie et voyez, pour chaque décision, quel choix maximisait vos chances de victoire." more={<p>Une partie jouée par l&apos;<b>IA experte</b>, comme un moteur d&apos;échecs : à chaque décision (cible, ordre des capacités, achat ou relance en boutique, option d&apos;un « Choix »), chaque possibilité est jouée puis la partie est terminée des dizaines de fois avec des tirages différents. Vous voyez le pourcentage de victoire de chaque option, le coup retenu et les endroits où l&apos;IA rapide (celle des tournois de decks) se serait trompée.</p>} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Picker label="Deck A" color="#7bf08a" deck={a} setDeck={setA} />
@@ -177,17 +173,17 @@ export function AnalysisView() {
         <button className="btn btn-primary" disabled={!ok || busy} onClick={() => void run()}>{busy ? "Analyse…" : "▶ Analyser une partie"}</button>
         {!ok && <span className="text-xs text-amber-200">Choisissez 4 cartes différentes pour chaque deck{meta ? " (ou un deck de la méta)" : ""}.</span>}
         {busy && <span className="text-xs text-white/60">{prog} décisions évaluées…</span>}
-        <p className="text-[11px] text-white/45 sm:basis-full">Profondeur : {DEPTH[depth].r * 2} fins de partie ou plus par option testée. Si seul le deck A est analysé, le deck B est joué par l&apos;IA rapide.</p>
+        <p className="text-xs text-white/55 sm:basis-full">Profondeur : {DEPTH[depth].r * 2} fins de partie ou plus par option testée. Si seul le deck A est analysé, le deck B est joué par l&apos;IA rapide.</p>
       </div>
       {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
 
       {out && (
         <>
           <div className="panel grid grid-cols-2 gap-3 p-4 text-center sm:grid-cols-4">
-            <div><div className="font-display text-2xl" style={{ color: out.result.winner === 0 ? "#7bf08a" : out.result.winner === 1 ? "#ff9a7a" : "#fff" }}>{out.result.winner === -1 ? "Égalité" : `Victoire ${out.result.winner === 0 ? "A" : "B"}`}</div><div className="text-xs text-white/50">{Math.ceil(out.result.turns / 2)} tours · terrain {["Feu", "Lumière", "Terre", "Nature", "Ombre", "Eau"][out.result.terrain]}</div></div>
-            <div><div className="font-display text-2xl">{out.decisions.length}</div><div className="text-xs text-white/50">décisions analysées</div></div>
-            <div><div className="font-display text-2xl">{changed.length}</div><div className="text-xs text-white/50">corrigées par l&apos;IA experte ({byKind("target").length} cibles, {byKind("shop").length} boutique, {byKind("cast").length} ordre)</div></div>
-            <div><div className="font-display text-2xl">{out.rollouts.toLocaleString("fr-FR")}</div><div className="text-xs text-white/50">fins de partie simulées</div></div>
+            <div><div className="font-display text-2xl" style={{ color: out.result.winner === 0 ? "#7bf08a" : out.result.winner === 1 ? "#ff9a7a" : "#fff" }}>{out.result.winner === -1 ? "Égalité" : `Victoire ${out.result.winner === 0 ? "A" : "B"}`}</div><div className="text-xs text-white/55">{Math.ceil(out.result.turns / 2)} tours · terrain {["Feu", "Lumière", "Terre", "Nature", "Ombre", "Eau"][out.result.terrain]}</div></div>
+            <div><div className="font-display text-2xl">{out.decisions.length}</div><div className="text-xs text-white/55">décisions analysées</div></div>
+            <div><div className="font-display text-2xl">{changed.length}</div><div className="text-xs text-white/55">corrigées par l&apos;IA experte ({byKind("target").length} cibles, {byKind("shop").length} boutique, {byKind("cast").length} ordre)</div></div>
+            <div><div className="font-display text-2xl">{out.rollouts.toLocaleString("fr-FR")}</div><div className="text-xs text-white/55">fins de partie simulées</div></div>
           </div>
 
           <WinCurve ds={out.decisions} />
@@ -212,7 +208,7 @@ export function AnalysisView() {
               </details>
             ))}
           </div>
-          <p className="text-xs text-white/40">Les pourcentages sont des estimations (quelques dizaines de fins de partie par option) : un écart de moins de 5 à 10 points peut venir du hasard. Augmentez la profondeur pour plus de précision.</p>
+          <p className="text-xs text-white/55">Les pourcentages sont des estimations (quelques dizaines de fins de partie par option) : un écart de moins de 5 à 10 points peut venir du hasard. Augmentez la profondeur pour plus de précision.</p>
         </>
       )}
     </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { compile, LUCK_ODDS, RAR_NAMES } from "@/sim/compile";
 import { useSpam, img } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 const RC = ["#9692A0", "#4FE6FF", "#C06AFF", "#FFC756"];
 
@@ -40,12 +41,7 @@ export function ToxView() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Boutique de Tox, passifs & talents</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Les Tox sont des passifs achetés avec des Spamtons : la boutique s&apos;ouvre aux tours pairs avec 3 offres, vous en achetez une, relancez (10 ⬢, +5 à chaque relance) ou passez (+10 ⬢). Chaque carte dispose de 3 emplacements partagés entre capacités et Tox. Chaque tour augmente la Chance, qui rend les offres plus rares (Épique dès la Chance 5, Légendaire dès 11).
-        </p>
-      </div>
+      <PageHeader group="comprendre" title="Tox & talents" lead="Les passifs de la boutique, leurs prix, la probabilité des raretés selon la Chance, et tous les talents." more={<p>Les Tox sont des passifs achetés avec des Spamtons : la boutique s&apos;ouvre aux tours pairs avec 3 offres, vous en achetez une, relancez (10 ⬢, +5 à chaque relance) ou passez (+10 ⬢). Chaque carte dispose de 3 emplacements partagés entre capacités et Tox. Chaque tour augmente la Chance, qui rend les offres plus rares (Épique dès la Chance 5, Légendaire dès 11).</p>} />
 
       <section className="space-y-3">
         <h2 className="font-display text-2xl text-white">Probabilité de rareté selon la Chance</h2>
@@ -56,7 +52,7 @@ export function ToxView() {
                 <div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden rounded-t-sm">
                   {o.map((x, i) => <div key={i} data-bar style={{ flexGrow: x, flexBasis: 0, minHeight: x > 0 ? 1 : 0, background: RC[i] }} />)}
                 </div>
-                <span className="mt-1 h-3 text-center text-[9px] leading-3 text-white/40">{l % 5 === 0 ? l : ""}</span>
+                <span className="mt-1 h-3 text-center text-xs leading-3 text-white/55">{l % 5 === 0 ? l : ""}</span>
               </div>
             ))}
           </div>
@@ -77,13 +73,13 @@ export function ToxView() {
                     <b className="text-white">{t.name}</b>
                   </div>
                   <p className="mt-1 text-white/65">{t.desc}</p>
-                  {SIM_NOTE[t.fam] && <p className="mt-1 text-[11px] leading-snug text-sky-200/70">{SIM_NOTE[t.fam]}</p>}
-                  <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[11px]">
+                  {SIM_NOTE[t.fam] && <p className="mt-1 text-xs leading-snug text-sky-200/70">{SIM_NOTE[t.fam]}</p>}
+                  <div className="mt-2 grid grid-cols-4 gap-1 text-center text-xs">
                     {RAR_NAMES.map((n, r) => (
                       <div key={n} className={`rounded-md bg-black/30 py-1 ${t.vals[r] === null ? "opacity-25" : ""}`}>
                         <div style={{ color: RC[r] }}>{n.slice(0, 4)}.</div>
                         <div>{t.vals[r] ?? "—"}</div>
-                        <div className="text-white/45">{t.prices[r] !== null ? `${t.prices[r]} ⬢${t.estimated ? "*" : ""}` : ""}</div>
+                        <div className="text-white/55">{t.prices[r] !== null ? `${t.prices[r]} ⬢${t.estimated ? "*" : ""}` : ""}</div>
                       </div>
                     ))}
                   </div>
@@ -92,7 +88,7 @@ export function ToxView() {
             </div>
           </div>
         ))}
-        <p className="text-xs text-white/45">Les valeurs des passifs présents sur des cartes sont lues directement dans les données officielles du patch ; les prix et les raretés absentes des cartes proviennent des données du client de jeu (v1.28.1) relevées par MetaBot, recoupées le 21/11/2026 : aucune valeur contredite par les données officielles.</p>
+        <p className="text-xs text-white/55">Les valeurs des passifs présents sur des cartes sont lues directement dans les données officielles du patch ; les prix et les raretés absentes des cartes proviennent des données du client de jeu (v1.28.1) relevées par MetaBot, recoupées le 21/11/2026 : aucune valeur contredite par les données officielles.</p>
       </section>
 
       <section className="space-y-3">
@@ -105,7 +101,7 @@ export function ToxView() {
             <div key={t.id} className="panel p-3 text-sm">
               <b className="text-white">{t.name}</b>
               <p className="text-white/70">{t.effect}</p>
-              <p className="mt-1 text-[11px] text-white/45">{t.cards.map((c) => `${c.name} (slot ${c.slot})`).join(" · ")}</p>
+              <p className="mt-1 text-xs text-white/55">{t.cards.map((c) => `${c.name} (slot ${c.slot})`).join(" · ")}</p>
             </div>
           ))}
         </div>

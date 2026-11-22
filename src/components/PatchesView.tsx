@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SITE_BASE, useSpam } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 interface Change { card: number; name: string; slug: string; kind: string; label: string; from?: string; to?: string }
 export interface PatchRow { version: string; previous: string | null; generatedAt: string; cardCount: number; changes: Change[]; summary: Record<string, number> }
@@ -29,13 +30,9 @@ export function PatchesView() {
   const [filter, setFilter] = useState("");
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Patchs & évolutions des cartes</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Le site vérifie le SpamDex officiel toutes les heures : dès qu&apos;une nouvelle version est publiée, les cartes, statistiques, passifs et talents sont mis à jour et le site est republié. Les différences entre versions sont calculées automatiquement.
+      <PageHeader group="references" title="Patchs & évolutions des cartes" lead="Les changements de chaque version du jeu, détectés automatiquement." more={<p>Le site vérifie le SpamDex officiel toutes les heures : dès qu&apos;une nouvelle version est publiée, les cartes, statistiques, passifs et talents sont mis à jour et le site est republié. Les différences entre versions sont calculées automatiquement.
         </p>
-        <p className="mt-2 text-sm text-white/55">Version actuelle : <b className="text-white">{ds?.version ?? "…"}</b>{info && <> · publiée par les développeurs le {new Date(info.generatedAt).toLocaleString("fr-FR")}{info.source === "direct" ? " (lue en direct)" : ""}</>}</p>
-      </div>
+        <p className="mt-2 text-sm text-white/55">Version actuelle : <b className="text-white">{ds?.version ?? "…"}</b>{info && <> · publiée par les développeurs le {new Date(info.generatedAt).toLocaleString("fr-FR")}{info.source === "direct" ? " (lue en direct)" : ""}</>}</p>} />
       <input className="input max-w-xs" placeholder="Filtrer par carte…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       {patches === null && <p className="text-white/60">Chargement de l&apos;historique…</p>}
       {patches && patches.length === 0 && <p className="panel p-6 text-white/60">L&apos;historique sera calculé lors de la prochaine synchronisation automatique (au plus une heure).</p>}
@@ -50,7 +47,7 @@ export function PatchesView() {
             <button className="flex w-full flex-wrap items-center justify-between gap-3 text-left" onClick={() => setOpen(isOpen && !filter ? null : p.version)}>
               <div>
                 <h2 className="font-display text-2xl text-white">Patch {p.version}</h2>
-                <p className="text-xs text-white/50">{new Date(p.generatedAt).toLocaleString("fr-FR")} · {p.cardCount} cartes · {p.changes.length} modification(s){p.previous ? ` depuis ${p.previous}` : ""}</p>
+                <p className="text-xs text-white/55">{new Date(p.generatedAt).toLocaleString("fr-FR")} · {p.cardCount} cartes · {p.changes.length} modification(s){p.previous ? ` depuis ${p.previous}` : ""}</p>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(p.summary).map(([k, v]) => <span key={k} className="rounded-full bg-black/40 px-2 py-0.5 text-xs" style={{ color: KCOL[k] }}>{v} {KIND[k] ?? k}</span>)}
@@ -60,15 +57,15 @@ export function PatchesView() {
               <div className="mt-4 space-y-3">
                 {[...byCard.entries()].map(([n, list]) => (
                   <div key={n} className="rounded-xl bg-black/30 p-3 text-sm">
-                    <b className="text-white">{list[0].name}</b> <span className="text-xs text-white/40">n°{n}</span>
+                    <b className="text-white">{list[0].name}</b> <span className="text-xs text-white/55">n°{n}</span>
                     <ul className="mt-1 space-y-1">
                       {list.map((c, i) => (
-                        <li key={i} className="text-white/75"><span style={{ color: KCOL[c.kind] }}>{c.label}</span>{c.from !== undefined && <> : <s className="text-white/40">{c.from}</s></>}{c.to !== undefined && <> → <span className="text-white">{c.to}</span></>}</li>
+                        <li key={i} className="text-white/75"><span style={{ color: KCOL[c.kind] }}>{c.label}</span>{c.from !== undefined && <> : <s className="text-white/55">{c.from}</s></>}{c.to !== undefined && <> → <span className="text-white">{c.to}</span></>}</li>
                       ))}
                     </ul>
                   </div>
                 ))}
-                {ch.length === 0 && <p className="text-sm text-white/50">Aucune différence détectée dans les données de cartes (patch d&apos;interface ou de correctifs).</p>}
+                {ch.length === 0 && <p className="text-sm text-white/55">Aucune différence détectée dans les données de cartes (patch d&apos;interface ou de correctifs).</p>}
               </div>
             )}
           </article>

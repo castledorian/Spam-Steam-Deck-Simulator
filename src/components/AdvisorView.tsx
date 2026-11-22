@@ -8,6 +8,7 @@ import { DeckCards, DeckTalents, ToxPlan, WinBar, pct } from "./DeckRow";
 import { CardChip } from "./CardView";
 import { Picker, type Pick } from "./AnalysisView";
 import { useSpam } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 interface Result { advice: Advice; get: Advice | null; precision: Precision; ms: number; deck: number[]; lvs: number[] }
 const signed = (x: number) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(1).replace(".", ",") + " pts";
@@ -78,13 +79,8 @@ export function AdvisorView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Conseiller de deck</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Entrez vos 4 cartes. Le simulateur joue votre deck contre les meilleurs decks de la méta, puis essaie <b>chaque remplacement possible</b> d&apos;une carte
-          (avec votre collection ou toutes les cartes), choisit les talents et vous dit ce qui améliore vraiment votre taux de victoire, avec la marge d&apos;erreur de chaque gain.
-        </p>
-      </div>
+      <PageHeader group="optimiser" title="Conseiller de deck" lead="Entrez vos 4 cartes : le simulateur trouve les remplacements et les talents qui améliorent votre taux de victoire." more={<p>Entrez vos 4 cartes. Le simulateur joue votre deck contre les meilleurs decks de la méta, puis essaie <b>chaque remplacement possible</b> d&apos;une carte
+          (avec votre collection ou toutes les cartes), choisit les talents et vous dit ce qui améliore vraiment votre taux de victoire, avec la marge d&apos;erreur de chaque gain.</p>} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <Picker label="Mon deck" color="#ffc756" deck={deck} setDeck={setD} />
@@ -99,7 +95,7 @@ export function AdvisorView() {
           <div className="space-y-1.5">
             <h2 className="font-semibold text-white">Précision</h2>
             {PRECISIONS.map((p) => (
-              <label key={p} className="flex cursor-pointer flex-wrap items-center gap-x-2"><input type="radio" checked={precision === p} onChange={() => setPrecision(p)} /> {PRECISION_LABEL[p]} <span className="text-white/45">{PRECISION_INFO[p].replace(/·.*/, "")}</span></label>
+              <label key={p} className="flex cursor-pointer flex-wrap items-center gap-x-2"><input type="radio" checked={precision === p} onChange={() => setPrecision(p)} /> {PRECISION_LABEL[p]} <span className="text-white/55">{PRECISION_INFO[p].replace(/·.*/, "")}</span></label>
             ))}
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-white/75"><input type="checkbox" checked={autoTal} onChange={(e) => setAutoTal(e.target.checked)} /> Laisser le simulateur choisir les talents</label>
@@ -112,7 +108,7 @@ export function AdvisorView() {
         <div className="panel space-y-2 p-4">
           <div className="flex justify-between text-sm"><span>{phase}</span><span>{Math.round(done * 100)} %</span></div>
           <div className="progress"><div style={{ width: `${done * 100}%` }} /></div>
-          <p className="text-xs text-white/50">Les calculs tournent dans des Web Workers : l&apos;interface reste fluide. Plus la précision est haute, plus les gains annoncés sont fiables.</p>
+          <p className="text-xs text-white/55">Les calculs tournent dans des Web Workers : l&apos;interface reste fluide. Plus la précision est haute, plus les gains annoncés sont fiables.</p>
         </div>
       )}
       {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
@@ -128,8 +124,8 @@ export function AdvisorView() {
             </div>
             <DeckTalents cards={res.deck} tal={a.baseTal} />
             {a.talents.length > 0 && <p className="text-xs text-emerald-300">Les talents choisis par le simulateur ont gagné aussi avec de nouveaux tirages (≈ {signed(a.talents.reduce((s, t) => s + t.d, 0))}).</p>}
-            <p className="text-xs text-white/50">Taux moyen contre les {a.gauntlet} meilleurs decks de la méta (50 % = équilibre), {a.base.n.toLocaleString("fr-FR")} matchs, premier joueur alterné.</p>
-            {a.base.tox && a.base.tox.length > 0 && <div className="space-y-1"><div className="text-xs text-white/45">Tox que l&apos;IA achète le plus avec ce deck (part des parties)</div><ToxPlan tox={a.base.tox} /></div>}
+            <p className="text-xs text-white/55">Taux moyen contre les {a.gauntlet} meilleurs decks de la méta (50 % = équilibre), {a.base.n.toLocaleString("fr-FR")} matchs, premier joueur alterné.</p>
+            {a.base.tox && a.base.tox.length > 0 && <div className="space-y-1"><div className="text-xs text-white/55">Tox que l&apos;IA achète le plus avec ce deck (part des parties)</div><ToxPlan tox={a.base.tox} /></div>}
           </section>
 
           <section className="space-y-3">
@@ -142,11 +138,11 @@ export function AdvisorView() {
             {a.unlocks.length > 0 && (
               <div className="panel space-y-2 p-4">
                 <h3 className="font-semibold text-white">Talents à débloquer sur vos cartes</h3>
-                <p className="text-xs text-white/50">Monter le niveau d&apos;une carte de votre deck débloque un talent qui améliore ce deck.</p>
+                <p className="text-xs text-white/55">Monter le niveau d&apos;une carte de votre deck débloque un talent qui améliore ce deck.</p>
                 {a.unlocks.map((u, i) => { const c = byNum.get(u.card); const t = c?.talents.find((x) => x.slot === u.slot); return (
                   <div key={i} className="flex flex-wrap items-center gap-3 text-sm">
                     {c && <CardChip card={c} size={44} />}
-                    <div className="min-w-0 flex-1"><b className="text-white">{c?.name}</b> : talent n°{u.slot}{t ? ` « ${t.name} »` : ""} <span className="text-white/45">(niveau {u.slot} requis)</span><div className="text-xs text-white/60">gain <b className={u.dlo > 0 ? "text-emerald-300" : "text-amber-200"}>{signed(u.d)}</b> <span className="text-white/40">(IC {signed(u.dlo)} à {signed(u.dhi)})</span></div></div>
+                    <div className="min-w-0 flex-1"><b className="text-white">{c?.name}</b> : talent n°{u.slot}{t ? ` « ${t.name} »` : ""} <span className="text-white/55">(niveau {u.slot} requis)</span><div className="text-xs text-white/60">gain <b className={u.dlo > 0 ? "text-emerald-300" : "text-amber-200"}>{signed(u.d)}</b> <span className="text-white/55">(IC {signed(u.dlo)} à {signed(u.dhi)})</span></div></div>
                   </div>); })}
               </div>
             )}
@@ -210,13 +206,13 @@ function SwapList({ list, res, deck, owned }: { list: AdviceSwap[]; res: Result;
             <div className="font-display text-3xl text-[#ffc756]">#{i + 1}</div>
             <div className="flex items-center gap-3">
               {out && <CardChip card={out} size={58} />}
-              <span className="text-2xl text-white/50">→</span>
+              <span className="text-2xl text-white/55">→</span>
               {inn && <CardChip card={inn} size={58} />}
             </div>
             <div className="min-w-0 flex-1 text-sm">
               <div className="text-white"><b>{nameOf(s.out)}</b> remplacée par <b className="text-[#ffc756]">{nameOf(s.in)}</b></div>
-              <div className="text-white/60">Nouveau taux : {pct(s.wr)} · gain <b className={sure ? "text-emerald-300" : "text-amber-200"}>{signed(s.d)}</b> <span className="text-white/40">(IC {signed(s.dlo)} à {signed(s.dhi)})</span></div>
-              <div className="text-xs text-white/45">{sure ? "Gain statistiquement fiable." : "Gain probable mais pas certain : relancez en précision supérieure pour confirmer."}{tIn ? ` Talent conseillé : ${tIn.name}.` : ""}{owned ? "" : " Carte à obtenir."}</div>
+              <div className="text-white/60">Nouveau taux : {pct(s.wr)} · gain <b className={sure ? "text-emerald-300" : "text-amber-200"}>{signed(s.d)}</b> <span className="text-white/55">(IC {signed(s.dlo)} à {signed(s.dhi)})</span></div>
+              <div className="text-xs text-white/55">{sure ? "Gain statistiquement fiable." : "Gain probable mais pas certain : relancez en précision supérieure pour confirmer."}{tIn ? ` Talent conseillé : ${tIn.name}.` : ""}{owned ? "" : " Carte à obtenir."}</div>
             </div>
             {owned && <ApplyBtn s={s} />}
           </article>

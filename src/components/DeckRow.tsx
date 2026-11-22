@@ -52,7 +52,7 @@ export function DeckTalents({ cards, tal }: { cards: number[]; tal?: number[] })
         const t = c?.talents.find((x) => x.slot === tal[i]);
         return (
           <div key={n} className="flex min-w-0 gap-1.5 rounded-lg bg-black/25 px-2 py-1" title={t?.effect}>
-            <span className="shrink-0 text-white/45">{c?.name ?? n} :</span>
+            <span className="shrink-0 text-white/55">{c?.name ?? n} :</span>
             <span className="truncate text-[#ff9ad5]">{t ? `${t.name} (talent ${t.slot})` : "aucun talent"}</span>
           </div>
         );
@@ -68,8 +68,8 @@ export function ToxPlan({ tox, max = 8 }: { tox?: [string, number][]; max?: numb
       {tox.slice(0, max).map(([k, v]) => {
         const l = toxLabel(k);
         return (
-          <span key={k} className="rounded-full bg-black/40 px-2 py-0.5 text-[11px]" title={`Acheté dans ${pct(v, 0)} des parties`}>
-            <span className={RAR_COLOR[+k.split(":").pop()!]}>{l.name}{l.el && !l.name.toLowerCase().includes(l.el.toLowerCase()) ? ` ${l.el}` : ""}</span> <span className="text-white/45">{l.r}{l.v !== null && l.v !== undefined && l.v > 1 ? ` ${l.v}` : ""} · {pct(v, 0)}</span>
+          <span key={k} className="rounded-full bg-black/40 px-2 py-0.5 text-xs" title={`Acheté dans ${pct(v, 0)} des parties`}>
+            <span className={RAR_COLOR[+k.split(":").pop()!]}>{l.name}{l.el && !l.name.toLowerCase().includes(l.el.toLowerCase()) ? ` ${l.el}` : ""}</span> <span className="text-white/55">{l.r}{l.v !== null && l.v !== undefined && l.v > 1 ? ` ${l.v}` : ""} · {pct(v, 0)}</span>
           </span>
         );
       })}
@@ -87,7 +87,7 @@ export function WinBar({ d, big = false }: { d: Pick<DeckStat, "wr" | "lo" | "hi
         <div className="absolute -top-0.5 h-3 w-1 rounded bg-white" style={{ left: `calc(${d.wr * 100}% - 2px)` }} />
         <div className="absolute -top-1 left-1/2 h-4 w-px bg-white/30" />
       </div>
-      <div className="mt-1 text-[11px] text-white/55">IC 95 % : {pct(d.lo)} – {pct(d.hi)} · ±{((d.hi - d.lo) * 50).toFixed(1).replace(".", ",")} pts · {d.n.toLocaleString("fr-FR")} matchs</div>
+      <div className="mt-1 text-xs text-white/55">IC 95 % : {pct(d.lo)} – {pct(d.hi)} · ±{((d.hi - d.lo) * 50).toFixed(1).replace(".", ",")} pts · {d.n.toLocaleString("fr-FR")} matchs</div>
     </div>
   );
 }

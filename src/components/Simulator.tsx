@@ -6,6 +6,7 @@ import { combos, DeckStat, optimize, Precision, PRECISION_INFO, PRECISION_LABEL,
 import type { DeckSpec, Snapshot } from "@/sim/engine";
 import { DeckCards, DeckTalents, ToxPlan, WinBar, pct } from "./DeckRow";
 import { useSpam } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 interface OptResult { decks: DeckStat[]; candidates: number; combos: number; matches: number; poolSize: number; precision: Precision; ms: number }
 
@@ -55,12 +56,7 @@ export function Simulator() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-white sm:text-4xl">Simulateur de decks</h1>
-        <p className="mt-1 max-w-3xl text-sm text-white/65">
-          Le moteur rejoue les duels selon les règles publiées : 4 cartes, recharges, points d&apos;éléments (+10 %/point), résistances, critiques, Spamtons, <b>boutique de Tox</b> toutes les 2 tours (Chance, rareté, relance, passer), passifs de départ et <b>un talent actif par carte</b>, choisi par simulation. Les meilleurs decks sont ensuite affinés en échangeant leurs cartes une à une.
-        </p>
-      </div>
+      <PageHeader group="optimiser" title="Simulateur de decks" lead="Comparez des decks de 4 cartes sur des milliers de duels, avec boutique, Chance et talents." more={<p>Le moteur rejoue les duels selon les règles publiées : 4 cartes, recharges, points d&apos;éléments (+10 %/point), résistances, critiques, Spamtons, <b>boutique de Tox</b> toutes les 2 tours (Chance, rareté, relance, passer), passifs de départ et <b>un talent actif par carte</b>, choisi par simulation. Les meilleurs decks sont ensuite affinés en échangeant leurs cartes une à une.</p>} />
       <div className="flex gap-2">
         <button className="chip flex-1 !px-4 !py-2 !text-sm sm:flex-none" data-on={tab === "opt"} onClick={() => setTab("opt")}>Optimiser mon deck</button>
         <button className="chip flex-1 !px-4 !py-2 !text-sm sm:flex-none" data-on={tab === "duel"} onClick={() => setTab("duel")}>Duel deck contre deck</button>
@@ -76,14 +72,14 @@ export function Simulator() {
               {source === "collection" && ownedNums.length < 4 && (
                 <p className="rounded-lg bg-amber-400/10 p-2 text-sm text-amber-200">Il faut au moins 4 cartes. <Link href="/collection" className="underline">Renseigner ma collection</Link></p>
               )}
-              <p className="text-xs text-white/50">{combos(poolNums.length).toLocaleString("fr-FR")} decks possibles de 4 cartes — tous évalués par le modèle statique, les meilleurs sont ensuite simulés.</p>
+              <p className="text-xs text-white/55">{combos(poolNums.length).toLocaleString("fr-FR")} decks possibles de 4 cartes — tous évalués par le modèle statique, les meilleurs sont ensuite simulés.</p>
             </div>
             <div className="space-y-2">
               <h2 className="font-semibold text-white">2. Précision statistique</h2>
               {PRECISIONS.map((p) => (
                 <label key={p} className="flex cursor-pointer flex-wrap items-center gap-x-2 text-sm">
                   <input type="radio" checked={precision === p} onChange={() => setPrecision(p)} />
-                  <span>{PRECISION_LABEL[p]}</span><span className="text-white/45">{PRECISION_INFO[p]}</span>
+                  <span>{PRECISION_LABEL[p]}</span><span className="text-white/55">{PRECISION_INFO[p]}</span>
                 </label>
               ))}
               {precision === "extreme" && <p className="text-xs text-amber-200/80">Recommandé pour décider du deck à jouer en classé. Laissez l&apos;onglet ouvert pendant le calcul.</p>}
@@ -98,7 +94,7 @@ export function Simulator() {
             <div className="panel space-y-2 p-4">
               <div className="flex justify-between text-sm"><span>{phase}</span><span>{Math.round(pctDone * 100)} %</span></div>
               <div className="progress"><div style={{ width: `${pctDone * 100}%` }} /></div>
-              <p className="text-xs text-white/50">Les calculs tournent dans des Web Workers : l&apos;interface reste fluide (60 fps).</p>
+              <p className="text-xs text-white/55">Les calculs tournent dans des Web Workers : l&apos;interface reste fluide (60 fps).</p>
             </div>
           )}
           {err && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{err}</p>}
@@ -111,7 +107,7 @@ export function Simulator() {
                 <Kpi l="Matchs simulés" v={res.matches.toLocaleString("fr-FR")} />
                 <Kpi l="Durée" v={(res.ms / 1000).toFixed(1).replace(".", ",") + " s"} />
               </div>
-              <p className="text-xs text-white/50">
+              <p className="text-xs text-white/55">
                 Taux de victoire = moyenne contre les {meta?.decks.length ?? 24} meilleurs decks de la méta (50 % = équilibre). L&apos;intervalle de confiance (Wilson, 95 %) indique la marge d&apos;erreur statistique ; le premier joueur est alterné pour annuler l&apos;avantage du lancer de pièce.
               </p>
               {res.decks.map((d, i) => (
@@ -124,7 +120,7 @@ export function Simulator() {
                   <DeckTalents cards={d.cards} tal={d.tal} />
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <div className="text-xs text-white/45">Plan de Tox le plus joué (part des parties)</div>
+                      <div className="text-xs text-white/55">Plan de Tox le plus joué (part des parties)</div>
                       <ToxPlan tox={d.tox} />
                     </div>
                     <div className="flex w-full gap-2 sm:w-auto">
@@ -140,7 +136,7 @@ export function Simulator() {
                         const [lo, hi] = wilson(v.wr * v.n, v.n);
                         return (
                           <div key={v.i} className="rounded-xl bg-black/30 p-2">
-                            <div className="mb-1 flex items-center justify-between text-xs"><span className="text-white/55">vs méta #{v.i + 1}</span><span className={v.wr >= 0.5 ? "text-emerald-300" : "text-red-300"}>{pct(v.wr)} <span className="text-white/40">({pct(lo, 0)}–{pct(hi, 0)})</span></span></div>
+                            <div className="mb-1 flex items-center justify-between text-xs"><span className="text-white/55">vs méta #{v.i + 1}</span><span className={v.wr >= 0.5 ? "text-emerald-300" : "text-red-300"}>{pct(v.wr)} <span className="text-white/55">({pct(lo, 0)}–{pct(hi, 0)})</span></span></div>
                             <DeckCards cards={opp.cards} size={40} />
                           </div>
                         );
@@ -160,7 +156,7 @@ export function Simulator() {
 }
 
 const Kpi = ({ l, v }: { l: string; v: string }) => (
-  <div><div className="font-display text-2xl text-white">{v}</div><div className="text-xs text-white/50">{l}</div></div>
+  <div><div className="font-display text-2xl text-white">{v}</div><div className="text-xs text-white/55">{l}</div></div>
 );
 
 /* ---------------------------------- duel ---------------------------------- */
@@ -258,7 +254,7 @@ function Duel({ a, b, setA, setB }: { a: number[]; b: number[]; setA: (d: number
         <div className="panel space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-display text-xl text-white">Match détaillé — {replay.winner === -1 ? "égalité" : `victoire du deck ${replay.winner === 0 ? "A" : "B"}`}</h3>
-            <span className="text-xs text-white/50">Tour {snap.turn} · joueur {snap.side === 0 ? "A" : "B"}</span>
+            <span className="text-xs text-white/55">Tour {snap.turn} · joueur {snap.side === 0 ? "A" : "B"}</span>
           </div>
           <input type="range" min={0} max={replay.trace.length - 1} value={step} onChange={(e) => setStep(+e.target.value)} className="w-full" />
           <div className="grid gap-3 md:grid-cols-2">
@@ -269,7 +265,7 @@ function Duel({ a, b, setA, setB }: { a: number[]; b: number[]; setA: (d: number
                   const c = byNum.get(num);
                   const hp = snap.hp[s][i], mx = snap.max[s][i];
                   return (
-                    <div key={i} className="text-xs"><div className="flex justify-between"><span className={snap.alive[s][i] ? "" : "text-white/35 line-through"}>{c?.name}</span><span>{hp}/{mx}</span></div>
+                    <div key={i} className="text-xs"><div className="flex justify-between"><span className={snap.alive[s][i] ? "" : "text-white/55 line-through"}>{c?.name}</span><span>{hp}/{mx}</span></div>
                       <div className="h-2 rounded-full bg-white/10"><div className="h-2 rounded-full" style={{ width: `${Math.max(0, Math.min(100, (hp / mx) * 100))}%`, background: s === 0 ? "#80E532" : "#ff7a5a" }} /></div></div>
                   );
                 })}
@@ -278,7 +274,7 @@ function Duel({ a, b, setA, setB }: { a: number[]; b: number[]; setA: (d: number
           </div>
           <details>
             <summary className="cursor-pointer text-sm text-white/70">Journal complet du match</summary>
-            <pre className="mt-2 max-h-80 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-relaxed text-white/70">{replay.log.join("\n")}</pre>
+            <pre className="mt-2 max-h-80 overflow-auto rounded-xl bg-black/40 p-3 text-xs leading-relaxed text-white/70">{replay.log.join("\n")}</pre>
           </details>
         </div>
       )}

@@ -200,9 +200,14 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
   };
   const clampRes = (v: number) => Math.max(-50, Math.min(50, v));
   const addTox = (c: RCard, t: Tox) => {
-    // un emplacement libre, sinon le dernier passif est remplacé (règle des talents « Applique le passif … au tour N »)
-    if (c.abs.length + c.tox.length >= SLOTS && c.tox.length) c.tox[c.tox.length - 1] = t;
-    else c.tox.push(t);
+    // carte pleine : « dans l'emplacement choisi (remplace ce qui s'y trouve) » : on libère l'emplacement qui vaut le moins (capacité épuisée, passif faible)
+    if (c.abs.length + c.tox.length >= SLOTS) {
+      const f = comp.tox.find((x) => x.fam === t.fam && (t.fam !== "heart" || x.el === t.el));
+      const sl = f ? bestSlot(sides[c.side], sides[1 - c.side], c, sides[c.side].turn, f) : null;
+      if (sl?.rep) dropSlot(c, sl.rep);
+      else if (c.tox.length) c.tox.pop();
+    }
+    c.tox.push(t);
   };
   const mkTox = (fam: Fam, r: number, el = -1): Tox => ({ fam, r, v: toxVal(comp, fam, r, el), el });
   const changeCd = (t: RCard, delta: number, fromEnemy: boolean) => {
@@ -246,7 +251,9 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
     c.uses = d.abilities.map((a) => a.uses);
     c.abB = d.abilities.map(() => 0);
     c.stack = d.abilities.map(() => 0);
-    c.tox = d.skills.map((t) => ({ ...t })).concat(keepBought);
+    // 3 emplacements partagés : les passifs achetés conservés après une transformation doivent tenir (les plus récents d'abord)
+    const room = Math.max(0, SLOTS - d.abilities.length - d.skills.length);
+    c.tox = d.skills.map((t) => ({ ...t })).concat(room > 0 ? keepBought.slice(-room) : []);
     c.res = d.res.slice();
     c.elCur = d.element;
   };
@@ -321,7 +328,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
       case "Racket": c.steal = c.tv; break;
       case "Imprecision": { const o = pick(E.cards); if (o && !immune(o)) o.accB -= c.tv; break; }
       case "Imprudent": metamorph(c, 100); c.max += 500; c.hp += 500; for (let e = 0; e < 6; e++) S.pts[e] += 2; break;
-      case "Nouvelle vie": c.tox.push(rng() < 0.5 ? mkTox("phoenix", 0) : mkTox("graveyard", 0)); break;
+      case "Nouvelle vie": addTox(c, rng() < 0.5 ? mkTox("phoenix", 0) : mkTox("graveyard", 0)); break;
       case "Transition": c.resurrect = 100; c.resurrectMeta = true; break;
       case "Evolution": c.evo = c.tox.map((x) => ({ t: x, r0: x.r })); break;
       case "TAttackMulticolor": c.multicolor += 1; break;

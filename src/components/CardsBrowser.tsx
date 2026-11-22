@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { RawCard } from "@/sim/compile";
 import { CardView } from "./CardView";
 import { img, useSpam } from "./SpamProvider";
+import { PageHeader } from "./PageHeader";
 
 const RAR_ORDER: Record<string, number> = { common: 1, rare: 2, epic: 3, legendary: 4, divine: 5 };
 
@@ -28,7 +29,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
       <div className="panel grid w-full max-w-5xl gap-6 bg-[#120a22] p-4 sm:grid-cols-[minmax(0,340px)_1fr] sm:p-6" onClick={(e) => e.stopPropagation()}>
         <div>
           <CardView card={card} big eager />
-          <p className="mt-2 text-[11px] text-white/50">
+          <p className="mt-2 text-xs text-white/55">
             Illustration : {card.artwork.artist ? (
               card.artwork.artist.link ? <a className="underline hover:text-white" href={card.artwork.artist.link} target="_blank" rel="noreferrer">{card.artwork.artist.name}</a> : card.artwork.artist.name
             ) : "—"}
@@ -86,7 +87,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
             <ul className="space-y-1.5">
               {card.abilities.map((a, ai) => (
                 <li key={a.id} className="rounded-lg bg-black/30 p-2">
-                  {abImp(ai) && <span className="float-right ml-2 rounded-full bg-white/8 px-2 text-[11px] text-white/60" title="Perte de taux de victoire si la capacité n'est jamais utilisée">apport {fmtPts(abImp(ai)!.d)}</span>}
+                  {abImp(ai) && <span className="float-right ml-2 rounded-full bg-white/8 px-2 text-xs text-white/60" title="Perte de taux de victoire si la capacité n'est jamais utilisée">apport {fmtPts(abImp(ai)!.d)}</span>}
                   <div className="flex items-center justify-between"><b>{a.name}</b><span className="text-xs text-white/60">recharge {a.cooldown} · précision {a.precision}% · crit {a.critChance}% ×{a.critMultiplier}{a.cooldownResetChance ? ` · écho ${a.cooldownResetChance}%` : ""}{a.uses ? ` · ${a.uses} usage(s)` : ""}</span></div>
                   <p className="whitespace-pre-line text-white/75">{a.effect}</p>
                 </li>
@@ -101,7 +102,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
                   <li key={s.id} className="flex items-start gap-2 rounded-lg bg-black/30 p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={img(s.icon)} alt="" className="h-8 w-8 shrink-0" loading="lazy" />
-                    <div><b>{s.name}</b> <span className="text-xs text-white/50">({s.rarity})</span><p className="whitespace-pre-line text-white/75">{s.effect}</p></div>
+                    <div><b>{s.name}</b> <span className="text-xs text-white/55">({s.rarity})</span><p className="whitespace-pre-line text-white/75">{s.effect}</p></div>
                   </li>
                 ))}
               </ul>
@@ -111,7 +112,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
             <h3 className="mb-1 font-semibold text-white">Talents (cachés, débloqués par doublons)</h3>
             <ul className="space-y-1.5">
               {card.talents.map((t) => (
-                <li key={t.slot} className="rounded-lg bg-black/30 p-2">{imp?.tal.find((x) => x.slot === t.slot) && <span className={`float-right ml-2 rounded-full px-2 text-[11px] ${imp.best === t.slot ? "bg-[#ff9ad5]/20 text-[#ff9ad5]" : "bg-white/8 text-white/60"}`}>{(imp.tal.find((x) => x.slot === t.slot)!.wr * 100).toFixed(1).replace(".", ",")} %</span>}<b>{t.slot}. {t.name}</b><p className="text-white/75">{t.effect}</p></li>
+                <li key={t.slot} className="rounded-lg bg-black/30 p-2">{imp?.tal.find((x) => x.slot === t.slot) && <span className={`float-right ml-2 rounded-full px-2 text-xs ${imp.best === t.slot ? "bg-[#ff9ad5]/20 text-[#ff9ad5]" : "bg-white/8 text-white/60"}`}>{(imp.tal.find((x) => x.slot === t.slot)!.wr * 100).toFixed(1).replace(".", ",")} %</span>}<b>{t.slot}. {t.name}</b><p className="text-white/75">{t.effect}</p></li>
               ))}
             </ul>
           </div>
@@ -119,7 +120,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
             <div>
               <h3 className="mb-1 font-semibold text-white">Histoire</h3>
               <p className="text-white/60">{card.lore.text}</p>
-              <p className="mt-1 text-xs text-white/40">{[card.lore.region, card.lore.era].filter(Boolean).join(" · ")}</p>
+              <p className="mt-1 text-xs text-white/55">{[card.lore.region, card.lore.era].filter(Boolean).join(" · ")}</p>
             </div>
           )}
         </div>
@@ -129,7 +130,7 @@ export function CardModal({ card, onClose }: { card: RawCard; onClose: () => voi
 }
 
 const Stat = ({ l, v }: { l: string; v: number }) => (
-  <div className="rounded-xl bg-black/30 p-2"><div className="font-display text-2xl text-[#ffc756]">{v}</div><div className="text-[11px] text-white/55">{l}</div></div>
+  <div className="rounded-xl bg-black/30 p-2"><div className="font-display text-2xl text-[#ffc756]">{v}</div><div className="text-xs text-white/55">{l}</div></div>
 );
 
 export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
@@ -187,14 +188,8 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl text-white sm:text-4xl">{mode === "browse" ? "Toutes les cartes" : "Ma collection"}</h1>
-          <p className="text-sm text-white/60">
-            {mode === "browse"
-              ? `${cards.length} cartes officielles · patch ${ds.version}. Cliquez une carte pour tous les détails.`
-              : `Cochez les cartes que vous possédez : le simulateur ne composera des decks qu'avec elles. ${ownedCount}/${cards.length} possédées.`}
-          </p>
-        </div>
+        <PageHeader group={mode === "browse" ? "references" : "optimiser"} title={mode === "browse" ? "Toutes les cartes" : "Ma collection"}
+          lead={mode === "browse" ? `${cards.length} cartes officielles · patch ${ds.version}. Cliquez une carte pour tous les détails.` : `Cochez les cartes que vous possédez : le conseiller et le simulateur n'utiliseront qu'elles. ${ownedCount}/${cards.length} possédées.`} />
         {mode === "collection" && (
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn" onClick={() => setMany(list.map((c) => c.number), true)}>Tout cocher (filtre)</button>
@@ -238,7 +233,7 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
         </div>
       </div>
 
-      <p className="text-xs text-white/50">{list.length} carte(s) affichée(s)</p>
+      <p className="text-xs text-white/55">{list.length} carte(s) affichée(s)</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {list.map((c, i) => {
           const has = c.number in collection;
@@ -263,11 +258,11 @@ export function CardsBrowser({ mode }: { mode: "browse" | "collection" }) {
                           {[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
                         </select>
                       </label>
-                    ) : <span className="text-white/35">non possédée</span>}
+                    ) : <span className="text-white/55">non possédée</span>}
                   </>
                 ) : (
                   <>
-                    <span className="text-white/50">n°{c.number}</span>
+                    <span className="text-white/55">n°{c.number}</span>
                     <button className={`rounded-full px-2 py-0.5 ${owned(c.number) ? "bg-emerald-400/20 text-emerald-300" : "bg-white/10 text-white/70 hover:bg-white/20"}`} onClick={() => setOwned(c.number, !owned(c.number))}>
                       {owned(c.number) ? "✓ possédée" : "+ collection"}
                     </button>
