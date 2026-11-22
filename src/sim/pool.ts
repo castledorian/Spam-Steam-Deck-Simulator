@@ -412,7 +412,9 @@ export interface AdviceSwap {
   d: number; dlo: number; dhi: number;
 }
 export interface AdviceTalent { pos: number; from: number; to: number; d: number }
+export interface AdviceUnlock { pos: number; card: number; slot: number; d: number; dlo: number; dhi: number }
 export interface Advice {
+  unlocks: AdviceUnlock[];
   base: DeckStat;
   /** talents retenus pour le deck de départ (ceux du joueur, ou les meilleurs trouvés) */
   baseTal: number[];
@@ -442,7 +444,7 @@ const diffCI = (a: { w: number; n: number }, b: { w: number; n: number }): [numb
  * mêmes tirages que le deck de départ.
  */
 export async function adviseDeck(
-  sim: SimPool, deck: DeckSpec, pool: number[], lvOf: (n: number) => number, gauntlet: DeckSpec[], precision: Precision, cb: ProgressCb,
+  sim: SimPool, deck: DeckSpec, pool: number[], lvOf: (n: number) => number, gauntlet: DeckSpec[], precision: Precision, cb: ProgressCb, unlock = false,
 ): Promise<Advice> {
   const comp = sim.comp!;
   const P = ADVICE[precision];
@@ -504,6 +506,28 @@ export async function adviseDeck(
     const [d, dlo, dhi] = diffCI(s, st3[0]);
     return { pos: f.pos, out: base.cards[f.pos], in: f.n, tal: tunedAll[i].tal ?? [], wr: s.w / Math.max(1, s.n), lo, hi, n: s.n, d, dlo, dhi };
   }).sort((a, b) => b.d - a.d);
+  // 5. talents que le niveau actuel des cartes du deck ne permet pas encore d'utiliser : gain à les débloquer
+  const unlocks: AdviceUnlock[] = [];
+  if (unlock) {
+    const uv: { d: DeckSpec; pos: number; slot: number }[] = [];
+    base.cards.forEach((n, pos) => {
+      const c = comp.byNum.get(n);
+      if (!c) return;
+      for (const t of c.talents) {
+        if (t.slot <= base.lv[pos] || t.slot === base.tal![pos]) continue;
+        const tal = base.tal!.slice(); tal[pos] = t.slot;
+        const lv = base.lv.slice(); lv[pos] = Math.max(lv[pos], t.slot);
+        uv.push({ d: { ...base, tal, lv }, pos, slot: t.slot });
+      }
+    });
+    if (uv.length) {
+      const all4 = [base, ...uv.map((v) => v.d)];
+      const st4 = await evaluate(sim, all4, opps, allPairs(all4.length, opps.length), P.s2, seed0 + 6, false, (p) => cb("Talents à débloquer", 0.97 + p * 0.03));
+      matches += all4.length * opps.length * P.s2;
+      uv.forEach((v, i) => { const [d, dlo, dhi] = diffCI(st4[i + 1], st4[0]); if (d > 0) unlocks.push({ pos: v.pos, card: base.cards[v.pos], slot: v.slot, d, dlo, dhi }); });
+      unlocks.sort((a, b) => b.d - a.d);
+    }
+  }
   cb("Terminé", 1);
-  return { base: toDeckStat(base, st3[0]), baseTal, talents, swaps, matches, gauntlet: opps.length };
+  return { base: toDeckStat(base, st3[0]), baseTal, talents, swaps, unlocks, matches, gauntlet: opps.length };
 }

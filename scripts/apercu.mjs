@@ -123,8 +123,11 @@ for (const [vname, vp] of Object.entries(VIEWS)) {
   if (await sels.count()) {
     const opts = await sels.first().locator("option").evaluateAll((o) => o.slice(1, 40).map((x) => x.value));
     const pick = [opts[0], opts[7], opts[14], opts[21]];
+    // collection de test : 30 cartes, niveaux 1 à 3 (le conseiller n'utilise que la collection)
+    await page.evaluate((o) => { const c = {}; o.slice(0, 30).forEach((n, i) => { c[n] = 1 + (i % 3); }); localStorage.setItem("spamlab.collection.v1", JSON.stringify(c)); }, opts);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(1500);
     for (let i = 0; i < 4; i++) await page.locator("select").filter({ hasText: `— carte ${i + 1} —` }).selectOption(pick[i]);
-    await page.getByLabel(/Toutes les cartes du jeu/).check();
     await page.getByLabel(/Rapide/).check();
     const t0 = Date.now();
     await page.getByRole("button", { name: /Analyser mon deck/ }).click();

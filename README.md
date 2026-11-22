@@ -80,6 +80,10 @@ sans elle) et point d'élément. Résultat : `public/data/lab.json`, affiché pa
 Vérifications automatiques : `npm test` (données, historique des patchs) et `npm run test:engine`
 (3 000 parties aléatoires sans erreur, reproductibilité, zones, Choix, talent unique, Immunité, Gel, rejeu exact de l'IA experte).
 
+### Conseiller de deck
+
+Le conseiller (`adviseDeck`, `src/sim/pool.ts`) joue votre deck de 4 cartes contre les meilleurs decks de la méta. Première passe : uniquement les cartes et **talents débloqués de votre collection** (remplacements d'une carte, choix des talents, talents à débloquer en montant une carte de niveau). Seconde passe, optionnelle : les cartes que vous ne possédez pas (niveau maximal supposé) qui amélioreraient le deck, à obtenir. Variantes et deck de départ partagent les mêmes tirages ; les meilleurs gains sont remesurés avec de nouveaux tirages et donnés avec un intervalle de confiance à 95 %.
+
 ### Plateau (match en direct)
 
 La page **Plateau** rejoue une partie décision par décision. Le moteur étant déterministe, une partie est décrite par ses decks, sa graine, le premier joueur, le terrain et les choix du joueur humain : pour annuler ou rouvrir un lien partagé, on rejoue simplement la partie avec ces choix (`src/sim/play.ts`). Le moteur expose l'état complet du terrain à chaque ligne de journal (`Frame`) et à chaque décision (`Board`). En mode « je joue », le tour est libre comme dans SPAM : la boutique s'ouvre en premier (acheter un Tox, relancer, passer, bannir une famille pour la partie), puis capacités dans l'ordre voulu et fin de tour ; le bot, lui, joue boutique puis capacités et ne bannit pas (hypothèse : un bannissement par boutique, coût non publié). Les attaques à cible aléatoire du terrain (Danse des plumes) blessent aussi les cartes alliées ; chaque ligne « Applique Disparition » retire un passif (Malédiction aquatique en applique deux).
