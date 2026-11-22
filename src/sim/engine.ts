@@ -1120,7 +1120,7 @@ export function playMatch(comp: Compiled, decks: [DeckSpec, DeckSpec], rng: Rng,
           let ab: CAbility | undefined;
           if (c.tk === "Souffle-8") {
             const el = c.elCur;
-            ab = { ...BREATH, actions: [{ effect: "damage", kind: "damage", min: 30, max: 30, el }], dmg: [{ effect: "damage", kind: "damage", min: 30, max: 30, el }] };
+            ab = { ...BREATH, actions: [{ effect: "damage", kind: "damage", min: 30, max: 30, el, chain: 0 }], dmg: [{ effect: "damage", kind: "damage", min: 30, max: 30, el, chain: 0 }] };
           } else ab = pick(comp.cards.flatMap((x) => x.abilities.filter((y) => y.hasDmg && !y.cost.length)));
           if (!ab) break;
           if (c.abs.length) { const k = c.abs.length - 1; c.abs[k] = ab; c.cd[k] = 0; c.uses[k] = ab.uses; c.abB[k] = 0; c.stack[k] = 0; }
