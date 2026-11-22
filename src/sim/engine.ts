@@ -51,10 +51,16 @@ export interface AiParams {
   pr: [number, number, number, number];
   fam: Partial<Record<Fam, number>>;
 }
+/**
+ * Réglage appris (novembre 2026, patch 1.31) : ciblage = modèle linéaire appris sur ≈ 6 000 décisions de l'IA experte,
+ * boutique et ordre des capacités ajustés par auto-apprentissage. Gagne ≈ 60 % des parties contre le réglage manuel
+ * précédent (méta, sièges et decks inversés, 33 000 parties).
+ */
 export const DEFAULT_AI: AiParams = {
-  shopThr: 0.03, shopDecay: 24, rerollMax: 2, rerollTurn: 14, rerollReserve: 20,
-  tKill: 1000, tThreat: 40, tDmg: 0.02, tReflect: 0.5, tFrozen: 20, tRevive: 0.1, tBack: 5, priceW: 0.0005, pr: [0, 2, 3, 1],
-  fam: {},
+  shopThr: 0.12, shopDecay: 40, rerollMax: 2, rerollTurn: 14, rerollReserve: 20,
+  tKill: 1000, tThreat: 150, tDmg: 0.02, tReflect: 0.5, tFrozen: 0, tRevive: 0.1, tBack: 5, priceW: 0.0005, pr: [0, 1, 3, 2],
+  fam: { erosion: 0, heart: 0.5, heartres: 2, tenacity: 2 },
+  tW: [0.0, 0.4817, -0.5138, 2.4283, -0.8284, -1.2461, -0.0496, 1.015, 0.3216, -0.6336, -0.2852, -0.3852, 0.2736, 0.8516, 0.2794, -0.1512, -4.9295],
 };
 export interface Snapshot { turn: number; side: number; hp: number[][]; max: number[][]; spam: number[]; pts: number[][]; alive: boolean[][] }
 export interface MatchResult { winner: 0 | 1 | -1; turns: number; bought: [string[], string[]]; terrain: number; first: number }

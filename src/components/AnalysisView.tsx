@@ -10,9 +10,9 @@ import { useSpam } from "./SpamProvider";
 interface Pick { cards: number[]; tal?: number[] }
 const KIND: Record<DecisionRec["kind"], string> = { cast: "Ordre des capacités", target: "Cible", shop: "Boutique", option: "Choix" };
 const DEPTH = [
-  { r: 12, l: "Rapide", info: "≈ 10-30 s" },
-  { r: 24, l: "Normale", info: "≈ 30-60 s" },
-  { r: 48, l: "Poussée", info: "≈ 1-3 min" },
+  { r: 16, l: "Rapide", info: "≈ 20-40 s" },
+  { r: 40, l: "Normale", info: "≈ 1-2 min" },
+  { r: 80, l: "Poussée", info: "≈ 3-5 min" },
 ];
 
 function Picker({ label, color, deck, setDeck }: { label: string; color: string; deck: Pick; setDeck: (d: Pick) => void }) {

@@ -2,10 +2,31 @@
 import { Worker } from "node:worker_threads";
 import { cpus } from "node:os";
 import { resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { compile, type Compiled, type RawDataset } from "../../src/sim/compile";
 import type { Ranked } from "../../src/sim/ranking";
 import type { Task, TaskOut } from "./worker";
+
+/**
+ * Fichier du worker : le code TypeScript est regroupé en un seul fichier JavaScript avec esbuild (fourni avec tsx),
+ * car les crochets de chargement de tsx ne sont pas toujours actifs dans les worker_threads.
+ * Sans esbuild accessible, le worker TypeScript est lancé tel quel (il hérite alors des options de tsx).
+ */
+let bundled: string | null = null;
+function workerFile(): string {
+  const src = resolve(process.cwd(), "scripts/lab/worker.ts");
+  if (bundled) return bundled;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const esbuild = require("esbuild") as { buildSync: (o: Record<string, unknown>) => unknown };
+    const out = resolve(tmpdir(), `spamlab-worker-${process.pid}.cjs`);
+    esbuild.buildSync({ entryPoints: [src], bundle: true, platform: "node", format: "cjs", target: "node20", outfile: out, logLevel: "error" });
+    bundled = out;
+    return out;
+  } catch {
+    return src;
+  }
+}
 
 type H = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 export class NodePool {
@@ -18,9 +39,7 @@ export class NodePool {
   constructor(n?: number) {
     this.size = Math.max(1, n ?? cpus().length);
     for (let i = 0; i < this.size; i++) {
-      // les workers doivent charger tsx eux-mêmes (les crochets de chargement ne sont pas hérités partout)
-      const local = existsSync(resolve(process.cwd(), "node_modules/tsx"));
-      const w = new Worker(resolve(process.cwd(), "scripts/lab/worker.ts"), local ? { execArgv: ["--import", "tsx"] } : undefined);
+      const w = new Worker(workerFile());
       w.on("message", (m: { id: number; result?: unknown; error?: string }) => {
         const h = this.handlers.get(m.id);
         if (!h) return;

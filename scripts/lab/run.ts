@@ -12,7 +12,7 @@ import { defaultTalent, DEFAULT_AI, talentSlots, type DeckSpec } from "../../src
 import type { Task } from "./worker";
 
 /** À incrémenter quand le moteur ou la méthode change (force un nouveau calcul). */
-export const LAB_VERSION = 1;
+export const LAB_VERSION = 2;
 
 const args = new Set(process.argv.slice(2));
 const QUICK = args.has("--quick");
@@ -38,7 +38,7 @@ log(`${pool.size} cœurs, ${comp.cards.length} cartes, données ${ds.version}${Q
 
 const S = QUICK
   ? { meta: { K: 300, k1: [12, 6, 40] as [number, number, number], sims2: 30, talSims: 16, talTop: 12, talRounds: 1 }, field: 12, opps: 6, toxN: 2, cardN: 1, ctx: 12, abN: 1, ptsN: 4, expertTop: 6, expertN: 2, expertR: 8 }
-  : { meta: { K: 2000, k1: [24, 12, 64] as [number, number, number], sims2: 300, talSims: 100, talTop: 24, talRounds: 2 }, field: 24, opps: 10, toxN: 6, cardN: 2, ctx: 48, abN: 6, ptsN: 12, expertTop: 12, expertN: 12, expertR: 12 };
+  : { meta: { K: 2000, k1: [24, 12, 64] as [number, number, number], sims2: 300, talSims: 100, talTop: 24, talRounds: 2 }, field: 24, opps: 10, toxN: 6, cardN: 2, ctx: 48, abN: 6, ptsN: 12, expertTop: 12, expertN: 12, expertR: 40 };
 
 /* ---------- 1. méta de référence (IA heuristique, beaucoup de parties) ---------- */
 let lastPh = "";
